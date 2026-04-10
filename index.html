@@ -2299,38 +2299,48 @@ async function loadEncoderIpriprint() {
 
 let printFrame = null;
 let isPrinting = false;
+let currentPrintJob = null;
 
 async function openPrintModal(itemId) {
   const item = STATE.items.find(i => i.id === itemId);
-  if (!item || item.remaining <= 0) return;
+  if (!item || item.remaining <= 0) {
+    toast('No pages remaining to print', 'warning');
+    return;
+  }
   
   STATE.pendingPrintItem = item;
-  const encoderUploads = STATE.uploads.filter(u => u.encoderUsername === STATE.currentUser.username && u.itemId === itemId);
+  
+  // Get assigned PDF for this encoder/item
+  const encoderUploads = STATE.uploads.filter(u => 
+    u.encoderUsername === STATE.currentUser.username && u.itemId === itemId
+  );
   const upload = encoderUploads[0];
   
-  // Load PDF data
-  let pageCount = 0;
+  // Load PDF from sessionStorage
   let pdfDoc = null;
+  let pageCount = 0;
   
   try {
     if (upload) {
       const key = `pdf_${STATE.currentUser.username}_${itemId}`;
       const stored = sessionStorage.getItem(key);
       if (stored) {
-        const binary = atob(stored);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const binaryString = atob(stored);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
         pdfDoc = await pdfjsLib.getDocument({ data: bytes.buffer }).promise;
         pageCount = pdfDoc.numPages;
       }
     }
   } catch(e) {
     console.warn('PDF load failed:', e);
-    toast('PDF load failed, using page count from item', 'warning');
   }
   
   STATE.currentPdfDoc = pdfDoc;
   
+  // Build modal content
   document.getElementById('print-modal-body').innerHTML = `
     <div class="print-info-grid">
       <div class="print-info-cell">
@@ -2339,30 +2349,163 @@ async function openPrintModal(itemId) {
       </div>
       <div class="print-info-cell">
         <div class="label">Remaining</div>
-        <div class="value text-yellow">${item.remaining.toLocaleString()}</div>
+        <div class="value text-yellow bold">${item.remaining.toLocaleString()}</div>
       </div>
-      <div class="print-info-cell">
-        <div class="label">PDF File</div>
-        <div class="value">${upload ? escHtml(upload.filename) : 'No file'}</div>
+      ${upload ? `
+        <div class="print-info-cell">
+          <div class="label">PDF File</div>
+          <div class="value">${escHtml(upload.filename)}</div>
+        </div>
+        <div class="print-info-cell">
+          <div class="label">PDF Pages</div>
+          <div class="value text-green">${pageCount || 'Unknown'}</div>
+        </div>
+      ` : `
+        <div class="print-info-cell" style="grid-column:1/-1;">
+          <div class="label" style="color:var(--orange);">⚠️ No PDF assigned</div>
+          <div class="value text-muted">Contact admin to upload PDF</div>
+        </div>
+      `}
+    </div>
+    
+    <div class="form-group mt-2">
+      <label class="form-label">Pages per Print Session 
+        <span style="color:var(--text-muted);font-size:0.8rem;">
+          (max ${Math.min(item.remaining, CONFIG.maxPagesPerBatch || 200)})
+        </span>
+      </label>
+      <input type="number" class="form-control" id="batch-size-input" 
+        value="${Math.min(item.remaining, CONFIG.maxPagesPerBatch || 200)}" 
+        min="1" max="${item.remaining}">
+    </div>
+    
+    <div class="batch-list" id="batch-list" style="max-height:200px;overflow-y:auto;"></div>
+    
+    <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:0.75rem;">
+      <div class="text-muted" style="font-size:0.82rem;">
+        💡 Tip: Print 50-100 pages per session for best results
       </div>
-      <div class="print-info-cell">
-        <div class="label">PDF Pages</div>
-        <div class="value">${pageCount || 'Unknown'}</div>
+      <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="closeModal('print-modal')">❌ Cancel</button>
+        <button class="btn btn-print btn-lg" id="start-print-btn" onclick="startPrinting()" 
+          ${!pdfDoc ? 'disabled' : ''} style="${!pdfDoc ? 'opacity:0.5' : ''}">
+          🖨️ START PRINTING
+        </button>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Pages per Batch <span style="color:var(--text-muted)">(max ${Math.min(item.remaining, CONFIG.maxPagesPerBatch || 200)})</span></label>
-      <input type="number" class="form-control" id="batch-size-input" value="${Math.min(item.remaining, CONFIG.maxPagesPerBatch || 200)}" min="1" max="${item.remaining}">
-    </div>
-    <div class="batch-list" id="batch-list"></div>
-    <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem;">
-      <button class="btn btn-ghost" onclick="closeModal('print-modal')">Cancel</button>
-      <button class="btn btn-print" id="start-print-btn" onclick="startPrintBatch()">🖨️ START PRINTING</button>
-    </div>
+    
+    ${!pdfDoc ? `
+      <div class="alert alert-warning mt-2">
+        <span class="alert-icon">⚠️</span>
+        No PDF file assigned. Ask your admin to upload the IPRIPRINT PDF for this item.
+      </div>
+    ` : ''}
   `;
   
   openModal('print-modal');
+  if (pdfDoc) updateBatchPreview(1); // Show initial batch preview
 }
+async function startPrinting() {
+  const batchSize = parseInt(document.getElementById('batch-size-input').value) || 0;
+  const item = STATE.pendingPrintItem;
+  
+  if (!batchSize || batchSize > item.remaining) {
+    toast('Invalid batch size', 'error');
+    return;
+  }
+  
+  if (!STATE.currentPdfDoc) {
+    toast('No PDF loaded', 'error');
+    return;
+  }
+  
+  if (isPrinting) {
+    toast('Print already in progress', 'warning');
+    return;
+  }
+  
+  // Initialize print job
+  currentPrintJob = {
+    itemId: item.id,
+    batchSize,
+    startPage: item.printed + 1,
+    totalBatches: Math.ceil(batchSize / 10), // 10 pages per batch max
+    currentBatch: 0,
+    pdfDoc: STATE.currentPdfDoc
+  };
+  
+  isPrinting = true;
+  
+  const btn = document.getElementById('start-print-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Starting...';
+  
+  try {
+    await createPrintBatches();
+    await initPrintFrame();
+    await processPrintJob();
+  } catch(e) {
+    toast('Print failed: ' + e.message, 'error');
+    resetPrintUI();
+  }
+}
+function updateBatchPreview(currentBatch) {
+  // Show first few pages of first batch as preview
+  const batchList = document.getElementById('batch-list');
+  if (!batchList || !STATE.currentPdfDoc) return;
+  
+  let html = '';
+  const firstBatch = STATE.printBatches?.[0];
+  if (firstBatch) {
+    html = `
+      <div class="batch-item active">
+        <div class="batch-num">1</div>
+        <span>pp${firstBatch.pagesFrom}–${firstBatch.pagesTo} (${firstBatch.pages}pg)</span>
+      </div>
+    `;
+  }
+  batchList.innerHTML = html;
+}
+
+async function processPrintJob() {
+  const job = currentPrintJob;
+  
+  for (let batchIdx = 0; batchIdx < STATE.printBatches.length; batchIdx++) {
+    if (!isPrinting) break; // User cancelled
+    
+    job.currentBatch = batchIdx;
+    const batch = STATE.printBatches[batchIdx];
+    
+    try {
+      // 1. Render PDF pages for this batch
+      await renderBatchPages(batch);
+      
+      // 2. Log to server
+      await logPrintBatch(batch);
+      
+      // 3. Update UI
+      updateBatchList(batchIdx + 1);
+      
+      // 4. Render to print frame & trigger print
+      renderBatchToPrintFrame(batch, batchIdx);
+      await triggerPrintDialog();
+      
+      // 5. Brief pause between batches
+      if (batchIdx < STATE.printBatches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+    } catch(e) {
+      console.error('Batch failed:', e);
+      toast(`Batch ${batchIdx + 1} failed: ${e.message}`, 'error');
+      break;
+    }
+  }
+  
+  await finalizePrintSession();
+}
+
+
 async function startPrintBatch() {
   const batchSize = parseInt(document.getElementById('batch-size-input').value);
   const item = STATE.pendingPrintItem;
@@ -2438,14 +2581,16 @@ async function startPrintSequence() {
   await finalizePrintSession();
 }
 async function renderBatchPages(batch) {
+  const pdfDoc = STATE.currentPdfDoc;
+  
   for (let pageNum = batch.pagesFrom; pageNum <= batch.pagesTo; pageNum++) {
-    if (pageNum > STATE.currentPdfDoc.numPages) {
+    if (pageNum > pdfDoc.numPages) {
       batch.pdfPages.push(createErrorCanvas(pageNum));
       continue;
     }
     
     try {
-      const page = await STATE.currentPdfDoc.getPage(pageNum);
+      const page = await pdfDoc.getPage(pageNum);
       const canvas = await renderPdfPageToCanvas(page);
       batch.pdfPages.push(canvas);
     } catch(e) {
@@ -2454,24 +2599,25 @@ async function renderBatchPages(batch) {
     }
   }
 }
-async function createPrintBatches(batchSize) {
+
+
+async function createPrintBatches() {
   STATE.printBatches = [];
-  const startPage = STATE.pendingPrintItem.printed + 1;
-  
-  // Create batches of 10 pages max each for better printing
-  let pagesLeft = batchSize;
-  let pageNum = startPage;
+  const job = currentPrintJob;
+  let pagesLeft = job.batchSize;
+  let pageNum = job.startPage;
   
   while (pagesLeft > 0) {
-    const batchPages = Math.min(10, pagesLeft);
-    const to = pageNum + batchPages - 1;
+    const batchPages = Math.min(10, pagesLeft); // Max 10 pages per print batch
+    const batchTo = pageNum + batchPages - 1;
     
     STATE.printBatches.push({
       index: STATE.printBatches.length,
       pagesFrom: pageNum,
-      pagesTo: to,
+      pagesTo: batchTo,
       pages: batchPages,
-      pdfPages: []
+      pdfPages: [],
+      rendered: false
     });
     
     pageNum += batchPages;
@@ -2480,19 +2626,21 @@ async function createPrintBatches(batchSize) {
   
   updateBatchList(0);
 }
+
+
 async function triggerPrintDialog() {
   return new Promise((resolve) => {
     setTimeout(() => {
       try {
         printFrame.contentWindow.focus();
         printFrame.contentWindow.print();
-        setTimeout(resolve, 1000);
+        setTimeout(resolve, 1500);
       } catch(e) {
-        console.warn('Print dialog failed:', e);
-        toast('Please use browser PRINT button', 'warning');
+        console.warn('Auto-print failed:', e);
+        toast('Please click PRINT button in preview', 'info');
         resolve();
       }
-    }, 800);
+    }, 500);
   });
 }
 
@@ -2502,8 +2650,8 @@ function resetPrintUI() {
     btn.disabled = false;
     btn.innerHTML = '🖨️ START PRINTING';
   }
-  resetPrintState();
 }
+
 async function processPrintBatch(batchIndex) {
   if (batchIndex >= STATE.printBatches.length) {
     await finalizePrintSession();
@@ -2602,44 +2750,55 @@ async function renderAllBatchPages() {
 }
 
 async function renderPdfPageToCanvas(page) {
-  const scale = 1.5;
+  const scale = 1.8; // Higher quality
   const viewport = page.getViewport({ scale });
   
   const canvas = document.createElement('canvas');
   canvas.height = viewport.height;
   canvas.width = viewport.width;
   const context = canvas.getContext('2d');
+  context.imageSmoothingEnabled = true;
   
-  await page.render({
+  const renderContext = {
     canvasContext: context,
     viewport: viewport
-  }).promise;
+  };
   
+  await page.render(renderContext).promise;
   return canvas;
 }
 
+
 function createErrorCanvas(pageNum) {
   const canvas = document.createElement('canvas');
-  canvas.width = 800;
-  canvas.height = 1100;
+  canvas.width = 794;  // A4 at 96 DPI
+  canvas.height = 1123;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#f8f9fa';
+  
+  // White background
+  ctx.fillStyle = 'white';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Error message
   ctx.fillStyle = '#dc3545';
   ctx.font = 'bold 48px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText('ERROR', canvas.width/2, canvas.height/2 - 20);
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PAGE ERROR', canvas.width/2, canvas.height/2);
+  
   ctx.fillStyle = '#6c757d';
-  ctx.font = '24px Arial';
-  ctx.fillText(`Page ${pageNum}`, canvas.width/2, canvas.height/2 + 30);
+  ctx.font = '32px Arial';
+  ctx.fillText(`Page ${pageNum}`, canvas.width/2, canvas.height/2 + 50);
+  
   return canvas;
 }
 
 async function initPrintFrame() {
-  return new Promise((resolve) => {
-    printFrame = document.getElementById('print-frame');
+  return new Promise((resolve, reject) => {
+    const frame = document.getElementById('print-frame');
     
-    printFrame.style.cssText = `
+    // Reset frame styles
+    frame.style.cssText = `
       display: block !important;
       position: fixed !important;
       top: 0 !important;
@@ -2651,57 +2810,110 @@ async function initPrintFrame() {
       border: none !important;
     `;
     
-    const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+    printFrame = frame;
+    
+    const printDoc = frame.contentDocument || frame.contentWindow.document;
+    
     printDoc.open();
-    printDoc.write(getPrintHtmlTemplate());
+    printDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>JNT Waybill Print - Batch ${currentPrintJob.currentBatch + 1}</title>
+        <meta charset="UTF-8">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { 
+            font-family: Arial, sans-serif; 
+            background: white; 
+            margin: 0; 
+            padding: 0;
+          }
+          .print-container { 
+            max-width: 210mm; 
+            margin: 0 auto; 
+            padding: 10mm; 
+          }
+          .print-page { 
+            width: 210mm; 
+            min-height: 297mm; 
+            margin-bottom: 5mm; 
+            padding: 15mm; 
+            background: white; 
+            page-break-after: always;
+            position: relative; 
+            box-shadow: 0 0 1px rgba(0,0,0,0.1);
+          }
+          .print-page:last-child { page-break-after: auto; margin-bottom: 0; }
+          canvas { 
+            max-width: 100%; 
+            height: auto; 
+            display: block; 
+            margin: 0 auto; 
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+          }
+          .batch-info {
+            position: absolute; 
+            top: 10mm; 
+            right: 15mm;
+            background: rgba(230,0,18,0.95); 
+            color: white; 
+            padding: 8px 14px;
+            font-size: 13px; 
+            font-weight: bold; 
+            border-radius: 6px;
+            z-index: 10;
+          }
+          .print-header {
+            text-align: center;
+            margin-bottom: 20mm;
+            color: #666;
+            font-size: 14px;
+          }
+          @media print { 
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .batch-info { background: #e60012 !important; }
+          }
+          @media screen { 
+            body::before {
+              content: '🖨️ PRINT THIS BATCH - Then click OK'; 
+              position: fixed; 
+              top: 20px; 
+              left: 50%; 
+              transform: translateX(-50%);
+              z-index: 10001;
+              background: rgba(230,0,18,0.95); 
+              color: white; 
+              padding: 15px 30px;
+              border-radius: 8px; 
+              font-weight: bold;
+              box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-container">
+          <div class="print-header">
+            <h2>JNT Waybill Printing</h2>
+            <div id="batch-status"></div>
+          </div>
+          <div id="print-pages"></div>
+        </div>
+      </body>
+      </html>
+    `);
     printDoc.close();
     
-    printFrame.onload = () => setTimeout(resolve, 500);
+    frame.onload = () => {
+      setTimeout(() => {
+        resolve();
+      }, 300);
+    };
+    
+    frame.onerror = reject;
   });
-}
-
-
-function getPrintHtmlTemplate() {
-  return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>JNT Waybill Print</title>
-      <meta charset="UTF-8">
-      <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: Arial, sans-serif; background: white; margin: 0; }
-        .print-container { max-width: 210mm; margin: 0 auto; padding: 10mm; }
-        .print-page { 
-          width: 210mm; min-height: 297mm; margin-bottom: 5mm; 
-          padding: 15mm; background: white; page-break-after: always;
-          position: relative; box-shadow: 0 0 1px rgba(0,0,0,0.1);
-        }
-        .print-page:last-child { page-break-after: auto; margin-bottom: 0; }
-        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-        .batch-info {
-          position: absolute; top: 10mm; right: 15mm;
-          background: rgba(230,0,18,0.95); color: white; padding: 6px 12px;
-          font-size: 12px; font-weight: bold; border-radius: 4px;
-        }
-        @media print { body { -webkit-print-color-adjust: exact; } }
-        @media screen { 
-          body::before {
-            content: '🖨️ PRINT READY - Click PRINT Button'; 
-            position: fixed; top: 20px; left: 20px; z-index: 10001;
-            background: rgba(230,0,18,0.95); color: white; padding: 15px 25px;
-            border-radius: 8px; font-weight: bold;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="print-container">
-        <div id="print-pages"></div>
-      </div>
-    </body>
-    </html>
-  `;
 }
 
 async function processNextPrintBatch() {
@@ -2742,10 +2954,11 @@ async function logPrintBatch(batch) {
   };
   
   const result = await api('logPrint', { log });
+  
   if (result.success) {
     STATE.logs.push(log);
     
-    // Update item locally
+    // Update item counters locally
     const item = STATE.items.find(i => i.id === STATE.pendingPrintItem.id);
     if (item) {
       item.printed += batch.pages;
@@ -2758,19 +2971,34 @@ async function logPrintBatch(batch) {
 
 
 function renderBatchToPrintFrame(batch, batchIdx) {
-  const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
+  const printDoc = printFrame.contentDocument;
   const pagesContainer = printDoc.getElementById('print-pages');
+  const batchStatus = printDoc.getElementById('batch-status');
+  
+  // Update batch status
+  batchStatus.innerHTML = `
+    <strong>${escHtml(STATE.pendingPrintItem.name)}</strong><br>
+    Batch ${batchIdx + 1} of ${STATE.printBatches.length} • 
+    Pages ${batch.pagesFrom}-${batch.pagesTo} (${batch.pages} pages)
+  `;
+  
+  // Clear and rebuild pages
   pagesContainer.innerHTML = '';
   
   batch.pdfPages.forEach((canvas, pageIndex) => {
     const pageDiv = printDoc.createElement('div');
     pageDiv.className = 'print-page';
     
+    // Batch info overlay
     const infoDiv = printDoc.createElement('div');
     infoDiv.className = 'batch-info';
-    infoDiv.textContent = `Batch ${batchIdx + 1} • pp${batch.pagesFrom + pageIndex}-${batch.pagesFrom + pageIndex}`;
+    infoDiv.innerHTML = `
+      Batch ${batchIdx + 1}<br>
+      pp${batch.pagesFrom + pageIndex}
+    `;
     pageDiv.appendChild(infoDiv);
     
+    // Add canvas
     pageDiv.appendChild(canvas.cloneNode(true));
     pagesContainer.appendChild(pageDiv);
   });
@@ -2783,14 +3011,20 @@ function updateBatchList(currentBatch) {
   
   let html = '';
   STATE.printBatches.forEach((batch, i) => {
-    const status = i < currentBatch ? 'done' : i === currentBatch ? 'active' : '';
+    const status = i < currentBatch - 1 ? 'done' : 
+                   i === currentBatch - 1 ? 'active' : '';
+    
     html += `
       <div class="batch-item ${status}">
         <div class="batch-num">${i+1}</div>
-        <span>pp${batch.pagesFrom}–${batch.pagesTo} (${batch.pages}pg)</span>
+        <span>pp${batch.pagesFrom}–${batch.pagesTo}</span>
+        <span style="font-size:0.8rem;color:var(--text-muted);margin-left:auto;">
+          ${batch.pages}pg
+        </span>
       </div>
     `;
   });
+  
   batchList.innerHTML = html;
 }
 
@@ -2825,50 +3059,73 @@ async function finalizePrintSession() {
   try {
     // Final server sync
     const item = STATE.pendingPrintItem;
-    if (item) {
+    if (item && item.id) {
       await api('updateItem', { 
         id: item.id, 
-        data: { printed: item.printed, remaining: item.remaining }
+        data: { 
+          printed: item.printed || 0, 
+          remaining: item.remaining || 0 
+        }
       });
     }
   } catch(e) {
     console.error('Final sync failed:', e);
   }
   
+  // Calculate total printed
+  const totalPrinted = STATE.printBatches.reduce((sum, batch) => sum + batch.pages, 0);
+  
   // Cleanup
-  if (printFrame) {
-    printFrame.style.display = 'none';
-  }
+  resetPrintFrame();
   
-  const totalPages = STATE.printBatches.reduce((s, b) => s + b.pages, 0);
-  toast(`✅ Print complete! ${totalPages} pages processed`, 'success');
+  // Success toast
+  toast(`✅ Print complete! ${totalPrinted.toLocaleString()} pages processed`, 'success');
   
-  // Refresh UI
+  // Close modal and refresh data
   closeModal('print-modal');
   await loadAllData();
+  
+  // Refresh relevant UI
   if (STATE.role === 'encoder') {
+    renderEncoderBanner();
     loadEncoderItems();
     renderEncoderItemsGrid();
-    updateEncoderQuickStats();
   } else {
+    loadAdminDashboard();
     renderAdminItemsTable();
-    updateAdminStats();
   }
   
   resetPrintState();
 }
-
-function resetPrintState() {
-  isPrinting = false;
-  STATE.pendingPrintItem = null;
-  STATE.printBatches = [];
-  STATE.currentBatchIndex = 0;
-  STATE.currentPdfDoc = null;
+function resetPrintFrame() {
   if (printFrame) {
     printFrame.style.display = 'none';
+    printFrame.src = '';
     printFrame = null;
   }
 }
+function resetPrintState() {
+  isPrinting = false;
+  currentPrintJob = null;
+  STATE.pendingPrintItem = null;
+  STATE.printBatches = [];
+  STATE.currentPdfDoc = null;
+  resetPrintFrame();
+  resetPrintUI();
+}
+
+const originalCloseModal = closeModal;
+window.closeModal = function(id) {
+  if (id === 'print-modal' && isPrinting) {
+    if (confirm('Print job in progress. Cancel and stop printing?')) {
+      isPrinting = false;
+      resetPrintState();
+    } else {
+      return;
+    }
+  }
+  originalCloseModal(id);
+};
 
 // ================================================================
 // SETTINGS
@@ -3053,6 +3310,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initSplash();
 });
 
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('print-modal')?.classList.contains('modal-overlay:not(.hidden)')) {
+    closeModal('print-modal');
+  }
+});
 // Auto-hide sidebar on mobile after selection
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
