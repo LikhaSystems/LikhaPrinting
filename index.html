@@ -1,0 +1,3238 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JNT Waybill Printing System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --red:        #e60012;
+  --red-dark:   #b8000e;
+  --red-light:  #ff3b3b;
+  --yellow:     #FFD700;
+  --dark:       #1a1a2e;
+  --darker:     #0f0f1a;
+  --card:       #16213e;
+  --card2:      #1d2a4a;
+  --border:     #2a3a5e;
+  --text:       #e8eaf0;
+  --text-muted: #8892b0;
+  --green:      #00d26a;
+  --green-dark: #00a854;
+  --orange:     #ff9800;
+  --blue:       #4fc3f7;
+  --shadow:     0 8px 32px rgba(0,0,0,0.4);
+  --radius:     12px;
+  --radius-sm:  8px;
+}
+
+html { font-size: 15px; }
+
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--darker);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--darker); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--red); }
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.15rem; }
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.hidden   { display: none !important; }
+.flex     { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-1 { gap: 0.5rem; }
+.gap-2 { gap: 1rem; }
+.gap-3 { gap: 1.5rem; }
+.mt-1  { margin-top: 0.5rem; }
+.mt-2  { margin-top: 1rem; }
+.mt-3  { margin-top: 1.5rem; }
+.mb-1  { margin-bottom: 0.5rem; }
+.mb-2  { margin-bottom: 1rem; }
+.w-full { width: 100%; }
+.text-center { text-align: center; }
+.text-muted  { color: var(--text-muted); font-size: 0.85rem; }
+.text-green  { color: var(--green); }
+.text-red    { color: var(--red-light); }
+.text-yellow { color: var(--yellow); }
+.text-blue   { color: var(--blue); }
+.bold { font-weight: 700; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================================================
+   LOADER / SPLASH
+   ============================================================ */
+#splash {
+  position: fixed; inset: 0;
+  background: var(--darker);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.5s;
+}
+.splash-logo {
+  width: 90px; height: 90px;
+  background: var(--red);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.5rem; font-weight: 900;
+  color: #fff;
+  box-shadow: 0 0 40px rgba(230,0,18,0.5);
+  animation: pulse-logo 1.5s ease-in-out infinite;
+  margin-bottom: 1.5rem;
+}
+@keyframes pulse-logo {
+  0%, 100% { box-shadow: 0 0 40px rgba(230,0,18,0.5); transform: scale(1); }
+  50% { box-shadow: 0 0 70px rgba(230,0,18,0.8); transform: scale(1.05); }
+}
+.splash-title { font-size: 1.6rem; font-weight: 800; color: #fff; letter-spacing: 1px; }
+.splash-sub   { color: var(--text-muted); margin-top: 0.4rem; font-size: 0.9rem; }
+.splash-bar   {
+  width: 200px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 2rem; overflow: hidden;
+}
+.splash-fill {
+  height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--red), var(--yellow));
+  border-radius: 2px;
+  animation: fill-bar 2s ease forwards;
+}
+@keyframes fill-bar { to { width: 100%; } }
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+#toast-container {
+  position: fixed; bottom: 1.5rem; right: 1.5rem;
+  z-index: 8000; display: flex; flex-direction: column; gap: 0.6rem;
+}
+.toast {
+  min-width: 260px; max-width: 380px;
+  padding: 0.85rem 1.2rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem; font-weight: 600;
+  display: flex; align-items: center; gap: 0.7rem;
+  box-shadow: var(--shadow);
+  animation: slideIn 0.3s ease;
+  cursor: pointer;
+}
+@keyframes slideIn {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+.toast.success { background: #0d3d26; border-left: 4px solid var(--green); color: var(--green); }
+.toast.error   { background: #3d0d0d; border-left: 4px solid var(--red-light); color: var(--red-light); }
+.toast.info    { background: #0d2a3d; border-left: 4px solid var(--blue); color: var(--blue); }
+.toast.warning { background: #3d2900; border-left: 4px solid var(--orange); color: var(--orange); }
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  z-index: 7000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.modal {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  width: 100%; max-width: 500px;
+  box-shadow: var(--shadow);
+  animation: modalIn 0.3s ease;
+}
+.modal-lg { max-width: 800px; }
+.modal-xl { max-width: 1100px; }
+@keyframes modalIn {
+  from { transform: scale(0.9) translateY(20px); opacity: 0; }
+  to   { transform: scale(1)   translateY(0);    opacity: 1; }
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.5rem; padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.modal-close {
+  width: 32px; height: 32px;
+  background: var(--border);
+  border: none; border-radius: 50%;
+  color: var(--text); font-size: 1.2rem;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.modal-close:hover { background: var(--red); }
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+.topbar {
+  height: 60px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1.5rem;
+  position: sticky; top: 0; z-index: 100;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+}
+.topbar-brand {
+  display: flex; align-items: center; gap: 0.75rem;
+  font-weight: 800; font-size: 1.1rem;
+  text-decoration: none; color: var(--text);
+}
+.brand-badge {
+  background: var(--red);
+  color: #fff;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.9rem; font-weight: 900;
+  letter-spacing: 1px;
+}
+.topbar-right { display: flex; align-items: center; gap: 0.75rem; }
+.role-badge {
+  padding: 0.3rem 0.9rem;
+  border-radius: 20px;
+  font-size: 0.78rem; font-weight: 700;
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+.role-badge.admin   { background: rgba(230,0,18,0.2); color: var(--red-light); border: 1px solid rgba(230,0,18,0.4); }
+.role-badge.encoder { background: rgba(79,195,247,0.15); color: var(--blue); border: 1px solid rgba(79,195,247,0.35); }
+
+/* ============================================================
+   SIDEBAR + LAYOUT
+   ============================================================ */
+.app-layout {
+  display: flex;
+  min-height: calc(100vh - 60px);
+}
+.sidebar {
+  width: 230px; flex-shrink: 0;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  padding: 1.2rem 0;
+  display: flex; flex-direction: column;
+  position: sticky; top: 60px; height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+.sidebar-section {
+  padding: 0.4rem 1rem 0.4rem 1.2rem;
+  font-size: 0.7rem; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 0.8rem;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem; font-weight: 500;
+  transition: all 0.2s;
+  border-left: 3px solid transparent;
+  text-decoration: none;
+}
+.nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+.nav-item.active {
+  background: rgba(230,0,18,0.12);
+  color: var(--red-light);
+  border-left-color: var(--red);
+  font-weight: 700;
+}
+.nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+.main-content {
+  flex: 1;
+  padding: 1.8rem;
+  overflow-y: auto;
+  max-width: 100%;
+}
+
+/* ============================================================
+   PAGE SECTIONS
+   ============================================================ */
+.page { display: none; }
+.page.active { display: block; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.2rem; padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--border);
+}
+.card-title { font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.stat-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.3rem 1.5rem;
+  display: flex; flex-direction: column; gap: 0.5rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.stat-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-muted); }
+.stat-value { font-size: 2rem; font-weight: 800; line-height: 1; }
+.stat-sub   { font-size: 0.8rem; color: var(--text-muted); }
+.stat-card.red    .stat-value { color: var(--red-light); }
+.stat-card.green  .stat-value { color: var(--green); }
+.stat-card.yellow .stat-value { color: var(--yellow); }
+.stat-card.blue   .stat-value { color: var(--blue); }
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.3rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem; font-weight: 600;
+  cursor: pointer; border: none;
+  transition: all 0.2s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--red); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--red-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(230,0,18,0.4); }
+.btn-success { background: var(--green-dark); color: #fff; }
+.btn-success:hover:not(:disabled) { background: #007a3d; transform: translateY(-1px); }
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.btn-outline:hover:not(:disabled) { border-color: var(--red); color: var(--red-light); }
+.btn-ghost { background: rgba(255,255,255,0.06); color: var(--text); border: none; }
+.btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+.btn-danger { background: rgba(230,0,18,0.15); color: var(--red-light); border: 1px solid rgba(230,0,18,0.35); }
+.btn-danger:hover:not(:disabled) { background: var(--red); color: #fff; }
+.btn-sm { padding: 0.4rem 0.9rem; font-size: 0.8rem; }
+.btn-lg { padding: 0.85rem 1.8rem; font-size: 1rem; }
+.btn-icon {
+  width: 36px; height: 36px; padding: 0;
+  border-radius: var(--radius-sm);
+}
+.btn-print {
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: #fff;
+  font-size: 0.95rem; font-weight: 700;
+  padding: 0.7rem 1.5rem;
+  box-shadow: 0 4px 18px rgba(230,0,18,0.35);
+}
+.btn-print:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--red-light), var(--red));
+  box-shadow: 0 6px 24px rgba(230,0,18,0.5);
+  transform: translateY(-2px);
+}
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1rem; }
+.form-label { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.3px; color: var(--text-muted); text-transform: uppercase; }
+.form-control {
+  background: var(--darker);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.9rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-control:focus { outline: none; border-color: var(--red); box-shadow: 0 0 0 3px rgba(230,0,18,0.15); }
+.form-control::placeholder { color: var(--text-muted); }
+select.form-control option { background: var(--darker); }
+.form-hint { font-size: 0.75rem; color: var(--text-muted); }
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  background: rgba(255,255,255,0.02);
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--red);
+  background: rgba(230,0,18,0.06);
+}
+.upload-icon { font-size: 3rem; margin-bottom: 0.8rem; }
+.upload-text { font-weight: 600; color: var(--text-muted); }
+.upload-text span { color: var(--red-light); }
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.table-wrapper {
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 0.88rem;
+}
+thead th {
+  background: var(--card2);
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem; font-weight: 700;
+  letter-spacing: 0.8px; text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tbody tr {
+  border-bottom: 1px solid rgba(42,58,94,0.5);
+  transition: background 0.15s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,0.03); }
+tbody td { padding: 0.8rem 1rem; vertical-align: middle; }
+
+/* ============================================================
+   BADGES / PILLS
+   ============================================================ */
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.72rem; font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.badge-success { background: rgba(0,210,106,0.15); color: var(--green); }
+.badge-danger  { background: rgba(230,0,18,0.15);  color: var(--red-light); }
+.badge-warning { background: rgba(255,152,0,0.15); color: var(--orange); }
+.badge-info    { background: rgba(79,195,247,0.15); color: var(--blue); }
+.badge-muted   { background: rgba(136,146,176,0.15); color: var(--text-muted); }
+
+/* ============================================================
+   PROGRESS BAR
+   ============================================================ */
+.progress-wrap {
+  background: var(--darker);
+  border-radius: 20px; height: 10px;
+  overflow: hidden;
+}
+.progress-bar {
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.5s ease;
+  background: linear-gradient(90deg, var(--red), var(--yellow));
+}
+.progress-bar.green  { background: linear-gradient(90deg, var(--green-dark), var(--green)); }
+.progress-bar.blue   { background: linear-gradient(90deg, #0288d1, var(--blue)); }
+
+/* ============================================================
+   LOGIN PAGE
+   ============================================================ */
+#login-page {
+  position: fixed; inset: 0;
+  background: var(--darker);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5000; padding: 1rem;
+}
+.login-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2.5rem;
+  width: 100%; max-width: 420px;
+  box-shadow: var(--shadow);
+}
+.login-logo {
+  text-align: center; margin-bottom: 2rem;
+}
+.login-logo-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 72px; height: 72px;
+  background: var(--red);
+  border-radius: 50%;
+  font-size: 1.8rem; font-weight: 900;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(230,0,18,0.4);
+  margin-bottom: 1rem;
+}
+.login-logo h2 { font-size: 1.3rem; }
+.login-logo p  { color: var(--text-muted); font-size: 0.85rem; }
+.login-tabs {
+  display: flex; gap: 0.5rem;
+  background: var(--darker);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem;
+  margin-bottom: 1.5rem;
+}
+.login-tab {
+  flex: 1; padding: 0.55rem;
+  border-radius: 6px; border: none;
+  background: transparent; color: var(--text-muted);
+  font-size: 0.85rem; font-weight: 600;
+  cursor: pointer; transition: all 0.2s;
+}
+.login-tab.active { background: var(--card2); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+/* ============================================================
+   ITEMS GRID (ENCODER VIEW)
+   ============================================================ */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.2rem;
+}
+.item-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+  display: flex; flex-direction: column; gap: 1rem;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.item-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); border-color: var(--red); }
+.item-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.item-name {
+  font-size: 1rem; font-weight: 700;
+  line-height: 1.3;
+  flex: 1;
+}
+.item-meta { display: flex; flex-direction: column; gap: 0.5rem; }
+.item-meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.83rem; }
+.item-meta-row .label { color: var(--text-muted); }
+.item-meta-row .value { font-weight: 700; }
+
+/* ============================================================
+   TALLY COUNTER
+   ============================================================ */
+.tally-bar-wrap { display: flex; flex-direction: column; gap: 0.4rem; }
+.tally-nums { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); }
+.tally-nums .printed { color: var(--green); font-weight: 700; }
+.tally-nums .remaining { color: var(--orange); font-weight: 700; }
+
+/* ============================================================
+   PRINT PREVIEW MODAL
+   ============================================================ */
+.print-info-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0.8rem; margin-bottom: 1.2rem;
+}
+.print-info-cell {
+  background: var(--darker);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border);
+}
+.print-info-cell .label { font-size: 0.73rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.3rem; }
+.print-info-cell .value { font-size: 1.2rem; font-weight: 800; }
+.batch-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.batch-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  background: var(--darker); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.65rem 1rem;
+  font-size: 0.88rem;
+}
+.batch-num {
+  width: 28px; height: 28px;
+  background: var(--red);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.batch-item.done { opacity: 0.5; }
+.batch-item.done .batch-num { background: var(--green-dark); }
+.batch-item.active { border-color: var(--yellow); background: rgba(255,215,0,0.05); }
+.batch-item.active .batch-num { background: var(--yellow); color: #000; }
+
+/* ============================================================
+   PDF CANVAS
+   ============================================================ */
+#pdf-preview-canvas {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-top: 0.5rem;
+}
+
+/* ============================================================
+   CONFIG SETUP SCREEN
+   ============================================================ */
+#setup-screen {
+  position: fixed; inset: 0;
+  background: var(--darker);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 4000; padding: 1rem;
+}
+.setup-box {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 2rem;
+  width: 100%; max-width: 560px;
+  box-shadow: var(--shadow);
+}
+.setup-step { display: none; }
+.setup-step.active { display: block; }
+.step-indicator {
+  display: flex; gap: 0.5rem; margin-bottom: 1.5rem;
+}
+.step-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background 0.3s;
+}
+.step-dot.done { background: var(--green); }
+.step-dot.active { background: var(--red); }
+
+/* ============================================================
+   ENCODER NAME BANNER
+   ============================================================ */
+.encoder-banner {
+  background: linear-gradient(135deg, var(--card2), var(--card));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.5rem;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.encoder-avatar {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--blue), #0288d1);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; font-weight: 800; color: #fff;
+  flex-shrink: 0;
+}
+.encoder-info { flex: 1; margin-left: 0.9rem; }
+.encoder-info .name { font-weight: 700; font-size: 1rem; }
+.encoder-info .sub  { font-size: 0.8rem; color: var(--text-muted); }
+
+/* ============================================================
+   IPRIPRINT DISPLAY
+   ============================================================ */
+.ipriprint-card {
+  background: var(--darker);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+}
+.ipriprint-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.ipriprint-badge {
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: #fff; font-size: 0.75rem; font-weight: 800;
+  padding: 0.3rem 0.8rem; border-radius: 20px;
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.ipriprint-rows { display: flex; flex-direction: column; gap: 0.5rem; }
+.ipriprint-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.85rem; padding: 0.5rem 0.8rem;
+  background: var(--card); border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.ipriprint-row .key { color: var(--text-muted); }
+.ipriprint-row .val { font-weight: 700; }
+
+/* ============================================================
+   SEARCH / FILTER BAR
+   ============================================================ */
+.filter-bar {
+  display: flex; gap: 0.75rem; flex-wrap: wrap;
+  margin-bottom: 1.2rem; align-items: center;
+}
+.search-input-wrap {
+  position: relative; flex: 1; min-width: 180px;
+}
+.search-input-wrap .search-icon {
+  position: absolute; left: 0.75rem; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted); pointer-events: none;
+}
+.search-input {
+  background: var(--darker);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.9rem 0.6rem 2.4rem;
+  color: var(--text); font-size: 0.88rem; width: 100%;
+  transition: border-color 0.2s;
+}
+.search-input:focus { outline: none; border-color: var(--red); }
+
+/* ============================================================
+   ADMIN UPLOAD AREA
+   ============================================================ */
+.upload-list { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+.upload-file-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--darker); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 0.7rem 1rem;
+  font-size: 0.85rem;
+}
+.upload-file-icon { font-size: 1.4rem; margin-right: 0.75rem; }
+.upload-file-info { flex: 1; }
+.upload-file-name { font-weight: 600; }
+.upload-file-size { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem; }
+.upload-progress { margin-top: 0.4rem; }
+
+/* ============================================================
+   PAGE HEADER
+   ============================================================ */
+.page-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.page-header-left h2 { font-size: 1.4rem; }
+.page-header-left p  { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem; }
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state {
+  text-align: center; padding: 4rem 1rem;
+  color: var(--text-muted);
+}
+.empty-state .icon { font-size: 4rem; margin-bottom: 1rem; opacity: 0.4; }
+.empty-state h3 { font-size: 1.1rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .sidebar.open { display: flex; position: fixed; z-index: 200; height: 100vh; top: 60px; }
+  .main-content { padding: 1rem; }
+  .items-grid { grid-template-columns: 1fr; }
+  .print-info-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  h1 { font-size: 1.5rem; }
+}
+
+/* ============================================================
+   PRINT IFRAME
+   ============================================================ */
+#print-frame { display: none; position: absolute; width: 1px; height: 1px; }
+
+/* ============================================================
+   SHIMMER LOADING
+   ============================================================ */
+.shimmer {
+  background: linear-gradient(90deg, var(--card2) 25%, var(--border) 50%, var(--card2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+/* ============================================================
+   ALERTS
+   ============================================================ */
+.alert {
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.alert-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 0.05rem; }
+.alert-info    { background: rgba(79,195,247,0.1);  border: 1px solid rgba(79,195,247,0.3);  color: var(--blue); }
+.alert-warning { background: rgba(255,152,0,0.1);   border: 1px solid rgba(255,152,0,0.3);   color: var(--orange); }
+.alert-success { background: rgba(0,210,106,0.1);   border: 1px solid rgba(0,210,106,0.3);   color: var(--green); }
+.alert-danger  { background: rgba(230,0,18,0.1);    border: 1px solid rgba(230,0,18,0.3);    color: var(--red-light); }
+
+/* ============================================================
+   GOOGLE SHEETS CONFIG HELPER
+   ============================================================ */
+.config-steps { counter-reset: step; display: flex; flex-direction: column; gap: 0.75rem; }
+.config-step {
+  counter-increment: step;
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  font-size: 0.88rem;
+}
+.config-step::before {
+  content: counter(step);
+  width: 24px; height: 24px; flex-shrink: 0;
+  background: var(--red); color: #fff;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 800; margin-top: 0.05rem;
+}
+
+/* ============================================================
+   DEMO MODE BANNER
+   ============================================================ */
+.demo-banner {
+  background: linear-gradient(135deg, rgba(255,152,0,0.15), rgba(255,215,0,0.1));
+  border: 1px solid rgba(255,152,0,0.4);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  font-size: 0.83rem; font-weight: 600; color: var(--orange);
+  display: flex; align-items: center; gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+/* ============================================================
+   MISC
+   ============================================================ */
+.divider { height: 1px; background: var(--border); margin: 1rem 0; }
+.tag {
+  display: inline-flex; align-items: center;
+  background: var(--darker); border: 1px solid var(--border);
+  border-radius: 6px; padding: 0.2rem 0.6rem;
+  font-size: 0.75rem; font-weight: 600; color: var(--text-muted);
+}
+.tag.red { background: rgba(230,0,18,0.1); border-color: rgba(230,0,18,0.35); color: var(--red-light); }
+.tag.green { background: rgba(0,210,106,0.1); border-color: rgba(0,210,106,0.35); color: var(--green); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+.highlight { color: var(--yellow); font-weight: 800; }
+
+/* spinning loader */
+.spin {
+  display: inline-block;
+  width: 18px; height: 18px;
+  border: 2.5px solid rgba(255,255,255,0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     SPLASH SCREEN
+     ============================================================ -->
+<div id="splash">
+  <div class="splash-logo">J</div>
+  <div class="splash-title">JNT Waybill System</div>
+  <div class="splash-sub">Printing Management Platform</div>
+  <div class="splash-bar"><div class="splash-fill"></div></div>
+</div>
+
+<!-- ============================================================
+     SETUP SCREEN (Google Sheets Config)
+     ============================================================ -->
+<div id="setup-screen" class="hidden">
+  <div class="setup-box">
+    <div style="text-align:center;margin-bottom:1.5rem;">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem;">⚙️</div>
+      <h2>System Configuration</h2>
+      <p class="text-muted" style="margin-top:0.3rem;">Connect your Google Sheets backend</p>
+    </div>
+
+    <div class="step-indicator" id="step-dots"></div>
+
+    <!-- Step 1: Mode -->
+    <div class="setup-step active" id="step-1">
+      <h3 style="margin-bottom:1rem;">Select Operation Mode</h3>
+      <div style="display:flex;flex-direction:column;gap:0.75rem;">
+        <label style="display:flex;align-items:center;gap:1rem;background:var(--darker);border:2px solid var(--border);border-radius:var(--radius-sm);padding:1rem;cursor:pointer;transition:border-color 0.2s;" id="mode-demo-label">
+          <input type="radio" name="op-mode" value="demo" checked style="accent-color:var(--red);width:18px;height:18px;">
+          <div>
+            <div style="font-weight:700;">🎭 Demo / Offline Mode</div>
+            <div class="text-muted" style="font-size:0.82rem;margin-top:0.2rem;">Use built-in sample data. No Google Sheets needed. Great for testing.</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:1rem;background:var(--darker);border:2px solid var(--border);border-radius:var(--radius-sm);padding:1rem;cursor:pointer;transition:border-color 0.2s;" id="mode-live-label">
+          <input type="radio" name="op-mode" value="live" style="accent-color:var(--red);width:18px;height:18px;">
+          <div>
+            <div style="font-weight:700;">🌐 Live Google Sheets Mode</div>
+            <div class="text-muted" style="font-size:0.82rem;margin-top:0.2rem;">Connect to real Google Sheets via Apps Script Web App.</div>
+          </div>
+        </label>
+      </div>
+      <div style="margin-top:1.5rem;display:flex;justify-content:flex-end;">
+        <button class="btn btn-primary" onclick="setupNext()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Apps Script URL (only if live) -->
+    <div class="setup-step" id="step-2">
+      <h3 style="margin-bottom:0.5rem;">Apps Script Web App URL</h3>
+      <p class="text-muted" style="font-size:0.83rem;margin-bottom:1rem;">
+        Deploy the provided Apps Script as a Web App and paste the URL below.
+      </p>
+      <div class="config-steps" style="margin-bottom:1.2rem;">
+        <div class="config-step">Open Google Sheets → Extensions → Apps Script</div>
+        <div class="config-step">Paste the Apps Script code (see documentation)</div>
+        <div class="config-step">Deploy as Web App → Execute as: Me → Access: Anyone</div>
+        <div class="config-step">Copy the deployment URL and paste below</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Apps Script Web App URL</label>
+        <input type="url" class="form-control" id="apps-script-url" placeholder="https://script.google.com/macros/s/.../exec">
+        <div class="form-hint">The URL must end with /exec</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Google Sheet ID</label>
+        <input type="text" class="form-control" id="sheet-id-input" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+        <div class="form-hint">Found in the Sheets URL: /spreadsheets/d/<strong>SHEET_ID</strong>/edit</div>
+      </div>
+      <div style="margin-top:1.5rem;display:flex;justify-content:space-between;">
+        <button class="btn btn-ghost" onclick="setupPrev()">← Back</button>
+        <button class="btn btn-primary" onclick="setupNext()">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Admin Password -->
+    <div class="setup-step" id="step-3">
+      <h3 style="margin-bottom:0.5rem;">Set Admin Password</h3>
+      <p class="text-muted" style="font-size:0.83rem;margin-bottom:1.2rem;">
+        This password protects the admin dashboard. In demo mode, default is <strong>admin123</strong>.
+      </p>
+      <div class="form-group">
+        <label class="form-label">Admin Password</label>
+        <input type="password" class="form-control" id="admin-pass-setup" placeholder="Enter admin password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <input type="password" class="form-control" id="admin-pass-confirm" placeholder="Confirm admin password">
+      </div>
+      <div style="margin-top:1.5rem;display:flex;justify-content:space-between;">
+        <button class="btn btn-ghost" onclick="setupPrev()">← Back</button>
+        <button class="btn btn-success" onclick="finishSetup()">✓ Finish Setup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     LOGIN PAGE
+     ============================================================ -->
+<div id="login-page" class="hidden">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-badge">J</div>
+      <h2>JNT Waybill System</h2>
+      <p>Printing Management Platform</p>
+    </div>
+
+    <div class="login-tabs">
+      <button class="login-tab active" id="tab-encoder" onclick="switchLoginTab('encoder')">🖨 Encoder</button>
+      <button class="login-tab" id="tab-admin" onclick="switchLoginTab('admin')">🔐 Admin</button>
+    </div>
+
+    <!-- Encoder Login -->
+    <div id="encoder-login-form">
+      <div class="form-group">
+        <label class="form-label">Your Name</label>
+        <input type="text" class="form-control" id="encoder-name-input" placeholder="e.g. Maria Santos" autocomplete="name">
+        <div class="form-hint">No password needed. Just enter your name to continue.</div>
+      </div>
+      <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="loginEncoder()">
+        🚀 Start Printing
+      </button>
+    </div>
+
+    <!-- Admin Login -->
+    <div id="admin-login-form" class="hidden">
+      <div class="form-group">
+        <label class="form-label">Admin Password</label>
+        <input type="password" class="form-control" id="admin-pass-input" placeholder="Enter admin password"
+          onkeydown="if(event.key==='Enter')loginAdmin()">
+      </div>
+      <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="loginAdmin()">
+        🔓 Login as Admin
+      </button>
+    </div>
+
+    <div class="divider"></div>
+    <p class="text-muted text-center" style="font-size:0.78rem;">
+      JNT Express Waybill Printing System v1.0
+    </p>
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN APPLICATION
+     ============================================================ -->
+<div id="app" class="hidden">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="brand-badge">JNT</span>
+      <span style="display:flex;flex-direction:column;line-height:1.1;">
+        <span style="font-size:0.95rem;">Waybill System</span>
+        <span style="font-size:0.7rem;color:var(--text-muted);font-weight:400;">Printing Management</span>
+      </span>
+    </div>
+    <div class="topbar-right">
+      <span class="role-badge" id="role-badge-top">ENCODER</span>
+      <span id="user-name-top" style="font-size:0.88rem;font-weight:600;color:var(--text-muted);max-width:140px;" class="truncate"></span>
+      <button class="btn btn-ghost btn-sm" onclick="logout()" title="Logout">⏻</button>
+      <!-- Mobile menu -->
+      <button class="btn btn-ghost btn-icon hidden" id="mob-menu-btn" onclick="toggleSidebar()" style="display:none;">☰</button>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+      <!-- ADMIN NAV -->
+      <div id="admin-nav" class="hidden">
+        <div class="sidebar-section">Overview</div>
+        <div class="nav-item active" onclick="showPage('admin-dashboard','admin-nav')" data-page="admin-dashboard">
+          <span class="nav-icon">📊</span> Dashboard
+        </div>
+        <div class="sidebar-section">Management</div>
+        <div class="nav-item" onclick="showPage('admin-items','admin-nav')" data-page="admin-items">
+          <span class="nav-icon">📦</span> Items
+        </div>
+        <div class="nav-item" onclick="showPage('admin-upload','admin-nav')" data-page="admin-upload">
+          <span class="nav-icon">📤</span> Upload IPRIPRINT
+        </div>
+        <div class="sidebar-section">Reports</div>
+        <div class="nav-item" onclick="showPage('admin-reports','admin-nav')" data-page="admin-reports">
+          <span class="nav-icon">📋</span> Print Logs
+        </div>
+        <div class="nav-item" onclick="showPage('admin-tally','admin-nav')" data-page="admin-tally">
+          <span class="nav-icon">🔢</span> Full Tally
+        </div>
+        <div class="sidebar-section">System</div>
+        <div class="nav-item" onclick="showPage('admin-settings','admin-nav')" data-page="admin-settings">
+          <span class="nav-icon">⚙️</span> Settings
+        </div>
+      </div>
+
+      <!-- ENCODER NAV -->
+      <div id="encoder-nav" class="hidden">
+        <div class="sidebar-section">My Work</div>
+        <div class="nav-item active" onclick="showPage('encoder-items','encoder-nav')" data-page="encoder-items">
+          <span class="nav-icon">📦</span> Items & Print
+        </div>
+        <div class="nav-item" onclick="showPage('encoder-summary','encoder-nav')" data-page="encoder-summary">
+          <span class="nav-icon">📊</span> My Summary
+        </div>
+        <div class="nav-item" onclick="showPage('encoder-ipriprint','encoder-nav')" data-page="encoder-ipriprint">
+          <span class="nav-icon">🖨</span> IPRIPRINT Info
+        </div>
+      </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+
+      <!-- ===== ADMIN: DASHBOARD ===== -->
+      <div class="page active" id="page-admin-dashboard">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>📊 Admin Dashboard</h2>
+            <p>Overview of the waybill printing operations</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="refreshAllData()">🔄 Refresh</button>
+        </div>
+
+        <div id="demo-banner-admin" class="demo-banner hidden">
+          ⚠️ Running in <strong>Demo Mode</strong> — Data is stored locally. Connect Google Sheets for production use.
+        </div>
+
+        <div class="stats-grid" id="admin-stats-grid">
+          <div class="stat-card red">
+            <div class="stat-label">Total Items</div>
+            <div class="stat-value" id="stat-total-items">—</div>
+            <div class="stat-sub">Registered waybill items</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label">Total Printed</div>
+            <div class="stat-value" id="stat-total-printed">—</div>
+            <div class="stat-sub">Pages printed today</div>
+          </div>
+          <div class="stat-card yellow">
+            <div class="stat-label">Remaining</div>
+            <div class="stat-value" id="stat-total-remaining">—</div>
+            <div class="stat-sub">Pages yet to print</div>
+          </div>
+          <div class="stat-card blue">
+            <div class="stat-label">Print Sessions</div>
+            <div class="stat-value" id="stat-print-sessions">—</div>
+            <div class="stat-sub">Total print actions logged</div>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📦 Items Overview</span>
+              <button class="btn btn-outline btn-sm" onclick="showPage('admin-items','admin-nav')">View All</button>
+            </div>
+            <div id="dashboard-items-list" class="table-wrapper">
+              <div class="empty-state"><div class="icon">📦</div><h3>Loading…</h3></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">🕐 Recent Print Logs</span>
+              <button class="btn btn-outline btn-sm" onclick="showPage('admin-reports','admin-nav')">View All</button>
+            </div>
+            <div id="dashboard-logs-list">
+              <div class="empty-state"><div class="icon">🕐</div><h3>Loading…</h3></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ADMIN: ITEMS MANAGEMENT ===== -->
+      <div class="page" id="page-admin-items">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>📦 Items Management</h2>
+            <p>Add, edit, and manage waybill items</p>
+          </div>
+          <button class="btn btn-primary" onclick="openAddItemModal()">+ Add Item</button>
+        </div>
+
+        <div class="card">
+          <div class="filter-bar">
+            <div class="search-input-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" class="search-input" id="items-search" placeholder="Search items…" oninput="filterItems()">
+            </div>
+            <select class="form-control" style="width:160px;" id="items-filter" onchange="filterItems()">
+              <option value="all">All Status</option>
+              <option value="pending">Has Remaining</option>
+              <option value="done">Fully Printed</option>
+            </select>
+          </div>
+          <div class="table-wrapper" id="admin-items-table">
+            <div class="empty-state"><div class="icon">⏳</div><h3>Loading items…</h3></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ADMIN: UPLOAD IPRIPRINT ===== -->
+      <div class="page" id="page-admin-upload">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>📤 Upload IPRIPRINT Files</h2>
+            <p>Upload PDF files for encoder assignments</p>
+          </div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📁 Upload New PDF</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Assign to Encoder</label>
+              <input type="text" class="form-control" id="upload-encoder-name" placeholder="Encoder name or 'all'">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Assign to Item</label>
+              <select class="form-control" id="upload-item-select">
+                <option value="">— Select Item —</option>
+              </select>
+            </div>
+            <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-upload-input').click()"
+              ondragover="event.preventDefault();this.classList.add('dragover')"
+              ondragleave="this.classList.remove('dragover')"
+              ondrop="handleFileDrop(event)">
+              <div class="upload-icon">📄</div>
+              <div class="upload-text">Drag & drop PDF here or <span>click to browse</span></div>
+              <div class="text-muted" style="margin-top:0.5rem;font-size:0.8rem;">Only PDF files • Max 50MB</div>
+            </div>
+            <input type="file" id="pdf-upload-input" accept=".pdf,application/pdf" class="hidden" onchange="handleFileSelect(event)">
+            <div id="upload-file-list" class="upload-list"></div>
+            <div style="margin-top:1rem;">
+              <button class="btn btn-primary w-full" id="upload-btn" onclick="processUpload()" disabled>
+                📤 Upload & Process
+              </button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📂 Upload History</span>
+              <button class="btn btn-outline btn-sm" onclick="loadUploadHistory()">🔄</button>
+            </div>
+            <div id="upload-history-list">
+              <div class="empty-state"><div class="icon">📂</div><h3>No uploads yet</h3></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ADMIN: PRINT LOGS ===== -->
+      <div class="page" id="page-admin-reports">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>📋 Print Logs</h2>
+            <p>Full history of all print actions by all encoders</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="exportLogs()">⬇ Export CSV</button>
+        </div>
+
+        <div class="card">
+          <div class="filter-bar">
+            <div class="search-input-wrap">
+              <span class="search-icon">🔍</span>
+              <input type="text" class="search-input" id="logs-search" placeholder="Search encoder, item…" oninput="filterLogs()">
+            </div>
+            <select class="form-control" style="width:160px;" id="logs-encoder-filter" onchange="filterLogs()">
+              <option value="all">All Encoders</option>
+            </select>
+            <select class="form-control" style="width:140px;" id="logs-date-filter" onchange="filterLogs()">
+              <option value="all">All Dates</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+            </select>
+          </div>
+          <div class="table-wrapper" id="print-logs-table">
+            <div class="empty-state"><div class="icon">📋</div><h3>Loading logs…</h3></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ADMIN: FULL TALLY ===== -->
+      <div class="page" id="page-admin-tally">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>🔢 Full Tally Report</h2>
+            <p>Comprehensive print status for all items</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadTallyReport()">🔄 Refresh</button>
+        </div>
+        <div id="tally-report-container">
+          <div class="empty-state"><div class="icon">🔢</div><h3>Loading tally…</h3></div>
+        </div>
+      </div>
+
+      <!-- ===== ADMIN: SETTINGS ===== -->
+      <div class="page" id="page-admin-settings">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>⚙️ System Settings</h2>
+            <p>Configure the waybill printing system</p>
+          </div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><span class="card-title">🔐 Admin Password</span></div>
+            <div class="form-group">
+              <label class="form-label">Current Password</label>
+              <input type="password" class="form-control" id="curr-pass">
+            </div>
+            <div class="form-group">
+              <label class="form-label">New Password</label>
+              <input type="password" class="form-control" id="new-pass">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Confirm New Password</label>
+              <input type="password" class="form-control" id="confirm-pass">
+            </div>
+            <button class="btn btn-primary" onclick="changeAdminPassword()">Update Password</button>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">🌐 Google Sheets Config</span></div>
+            <div class="form-group">
+              <label class="form-label">Operation Mode</label>
+              <select class="form-control" id="op-mode-setting" onchange="saveSettings()">
+                <option value="demo">Demo / Offline Mode</option>
+                <option value="live">Live Google Sheets</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Apps Script URL</label>
+              <input type="url" class="form-control" id="apps-script-url-setting" placeholder="https://script.google.com/macros/s/.../exec">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Sheet ID</label>
+              <input type="text" class="form-control" id="sheet-id-setting" placeholder="Google Sheet ID">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Max Pages Per Batch</label>
+              <input type="number" class="form-control" id="max-pages-setting" value="200" min="10" max="500">
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+            <div class="divider"></div>
+            <button class="btn btn-danger btn-sm" onclick="testConnection()">🔌 Test Connection</button>
+            <span id="conn-status" class="text-muted" style="font-size:0.8rem;margin-left:0.5rem;"></span>
+          </div>
+        </div>
+
+        <div class="card mt-2">
+          <div class="card-header"><span class="card-title">📋 Apps Script Code</span></div>
+          <p class="text-muted" style="font-size:0.83rem;margin-bottom:1rem;">
+            Copy and deploy this code in Google Apps Script for live Google Sheets integration.
+          </p>
+          <div style="background:var(--darker);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;overflow-x:auto;">
+            <pre id="apps-script-code" style="font-size:0.75rem;color:var(--text-muted);white-space:pre-wrap;line-height:1.6;font-family:monospace;"></pre>
+          </div>
+          <button class="btn btn-ghost btn-sm mt-1" onclick="copyAppsScript()">📋 Copy Code</button>
+        </div>
+      </div>
+
+      <!-- ===== ENCODER: ITEMS & PRINT ===== -->
+      <div class="page" id="page-encoder-items">
+        <div id="encoder-banner-wrap"></div>
+
+        <div id="demo-banner-enc" class="demo-banner hidden">
+          ⚠️ <strong>Demo Mode</strong> — Printing uses sample data. Connect Google Sheets for live use.
+        </div>
+
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>📦 Items to Print</h2>
+            <p>Click PRINT on any item to start the print process</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadEncoderItems()">🔄 Refresh</button>
+        </div>
+
+        <div class="filter-bar">
+          <div class="search-input-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" id="enc-items-search" placeholder="Search items…" oninput="filterEncoderItems()">
+          </div>
+          <select class="form-control" style="width:160px;" id="enc-items-filter" onchange="filterEncoderItems()">
+            <option value="all">All Items</option>
+            <option value="pending">Has Remaining</option>
+            <option value="done">Completed</option>
+          </select>
+        </div>
+
+        <div class="items-grid" id="encoder-items-grid">
+          <div class="empty-state" style="grid-column:1/-1;">
+            <div class="icon">⏳</div><h3>Loading items…</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ENCODER: MY SUMMARY ===== -->
+      <div class="page" id="page-encoder-summary">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>📊 My Print Summary</h2>
+            <p>Overview of your printing activity</p>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="loadEncoderSummary()">🔄 Refresh</button>
+        </div>
+
+        <div class="stats-grid" id="enc-stats-grid">
+          <div class="stat-card green">
+            <div class="stat-label">Pages Printed</div>
+            <div class="stat-value" id="enc-stat-printed">—</div>
+            <div class="stat-sub">By me today</div>
+          </div>
+          <div class="stat-card yellow">
+            <div class="stat-label">Remaining Pages</div>
+            <div class="stat-value" id="enc-stat-remaining">—</div>
+            <div class="stat-sub">Still to print</div>
+          </div>
+          <div class="stat-card blue">
+            <div class="stat-label">Print Sessions</div>
+            <div class="stat-value" id="enc-stat-sessions">—</div>
+            <div class="stat-sub">Total print actions</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-label">Items Assigned</div>
+            <div class="stat-value" id="enc-stat-items">—</div>
+            <div class="stat-sub">Waybill items</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">🕐 My Print History</span></div>
+          <div id="my-print-history" class="table-wrapper">
+            <div class="empty-state"><div class="icon">🕐</div><h3>Loading…</h3></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ENCODER: IPRIPRINT INFO ===== -->
+      <div class="page" id="page-encoder-ipriprint">
+        <div class="page-header">
+          <div class="page-header-left">
+            <h2>🖨 IPRIPRINT File Info</h2>
+            <p>Summary of your assigned IPRIPRINT files</p>
+          </div>
+        </div>
+        <div id="ipriprint-info-container">
+          <div class="empty-state"><div class="icon">🖨</div><h3>No IPRIPRINT files assigned yet</h3><p style="font-size:0.83rem;margin-top:0.5rem;">Ask your admin to upload your PDF file.</p></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODALS
+     ============================================================ -->
+
+<!-- Add/Edit Item Modal -->
+<div class="modal-overlay hidden" id="item-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="item-modal-title">Add New Item</h3>
+      <button class="modal-close" onclick="closeModal('item-modal')">×</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Item Name</label>
+      <input type="text" class="form-control" id="item-name-input" placeholder="e.g. MANILA BATCH 1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Quantity / Total Pages to Print</label>
+      <input type="number" class="form-control" id="item-qty-input" placeholder="e.g. 500" min="1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Item ID (auto-generated if blank)</label>
+      <input type="text" class="form-control" id="item-id-input" placeholder="Leave blank for auto">
+    </div>
+    <input type="hidden" id="item-edit-id">
+    <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem;">
+      <button class="btn btn-ghost" onclick="closeModal('item-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveItem()">💾 Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- Print Preview Modal -->
+<div class="modal-overlay hidden" id="print-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h3>🖨 Print Waybill</h3>
+      <button class="modal-close" onclick="closeModal('print-modal')">×</button>
+    </div>
+
+    <div id="print-modal-body">
+      <!-- Filled dynamically -->
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>⚠️ Confirm Delete</h3>
+      <button class="modal-close" onclick="closeModal('delete-modal')">×</button>
+    </div>
+    <p style="color:var(--text-muted);margin-bottom:1.5rem;">Are you sure you want to delete <strong id="delete-item-name"></strong>? This cannot be undone.</p>
+    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmDeleteItem()">🗑 Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Hidden print iframe -->
+<iframe id="print-frame" title="print"></iframe>
+
+<!-- ============================================================
+     JAVASCRIPT
+     ============================================================ -->
+<script>
+// ================================================================
+// CONFIGURATION & STATE
+// ================================================================
+const CONFIG = {
+  version: '1.0.0',
+  maxPagesPerBatch: 200,
+  adminPassword: 'admin123',
+  opMode: 'demo',        // 'demo' | 'live'
+  appsScriptUrl: '',
+  sheetId: '',
+  setupDone: false
+};
+
+const STATE = {
+  role: null,            // 'admin' | 'encoder'
+  encoderName: '',
+  currentPage: '',
+  items: [],
+  logs: [],
+  uploads: [],
+  pendingFile: null,
+  pendingFileData: null, // ArrayBuffer
+  pendingPrintItem: null,
+  setupStep: 1,
+  deleteTargetId: null,
+  currentBatchIndex: 0,
+  printBatches: [],
+  allPagesCount: 0,
+  currentPdfDoc: null
+};
+
+// ================================================================
+// DEMO DATA (used in demo mode)
+// ================================================================
+const DEMO = {
+  items: [
+    { id:'itm001', name:'MANILA BATCH 1',    total:400, printed:200, remaining:200 },
+    { id:'itm002', name:'CEBU BATCH 1',      total:150, printed:150, remaining:0   },
+    { id:'itm003', name:'DAVAO BATCH 2',     total:600, printed:0,   remaining:600 },
+    { id:'itm004', name:'QUEZON CITY B1',    total:300, printed:100, remaining:200 },
+    { id:'itm005', name:'ILOILO BATCH 1',    total:80,  printed:80,  remaining:0   },
+    { id:'itm006', name:'BACOLOD BATCH 1',   total:220, printed:60,  remaining:160 },
+  ],
+  logs: [
+    { id:'log001', encoder:'Maria Santos',   item:'MANILA BATCH 1',   pages:200, pagesFrom:1,   pagesTo:200, timestamp:'2025-01-15 08:30:12', batch:1 },
+    { id:'log002', encoder:'Juan dela Cruz', item:'CEBU BATCH 1',     pages:150, pagesFrom:1,   pagesTo:150, timestamp:'2025-01-15 09:15:44', batch:1 },
+    { id:'log003', encoder:'Maria Santos',   item:'QUEZON CITY B1',   pages:100, pagesFrom:1,   pagesTo:100, timestamp:'2025-01-15 10:00:00', batch:1 },
+    { id:'log004', encoder:'Pedro Reyes',    item:'ILOILO BATCH 1',   pages:80,  pagesFrom:1,   pagesTo:80,  timestamp:'2025-01-15 11:20:55', batch:1 },
+    { id:'log005', encoder:'Ana Gonzales',   item:'BACOLOD BATCH 1',  pages:60,  pagesFrom:1,   pagesTo:60,  timestamp:'2025-01-15 13:45:30', batch:1 },
+  ],
+  uploads: [
+    { id:'upl001', filename:'MANILA_BATCH1.pdf',  encoder:'Maria Santos',   item:'MANILA BATCH 1',  pages:400, uploadDate:'2025-01-15 07:00:00', uploadBy:'Admin' },
+    { id:'upl002', filename:'CEBU_BATCH1.pdf',    encoder:'Juan dela Cruz', item:'CEBU BATCH 1',    pages:150, uploadDate:'2025-01-15 07:05:00', uploadBy:'Admin' },
+    { id:'upl003', filename:'DAVAO_BATCH2.pdf',   encoder:'all',            item:'DAVAO BATCH 2',   pages:600, uploadDate:'2025-01-15 07:10:00', uploadBy:'Admin' },
+    { id:'upl004', filename:'QC_BATCH1.pdf',      encoder:'Maria Santos',   item:'QUEZON CITY B1',  pages:300, uploadDate:'2025-01-15 07:15:00', uploadBy:'Admin' },
+    { id:'upl005', filename:'ILOILO_BATCH1.pdf',  encoder:'Pedro Reyes',    item:'ILOILO BATCH 1',  pages:80,  uploadDate:'2025-01-15 07:20:00', uploadBy:'Admin' },
+    { id:'upl006', filename:'BACOLOD_BATCH1.pdf', encoder:'Ana Gonzales',   item:'BACOLOD BATCH 1', pages:220, uploadDate:'2025-01-15 07:25:00', uploadBy:'Admin' },
+  ]
+};
+
+// ================================================================
+// PERSISTENCE (localStorage)
+// ================================================================
+function loadConfig() {
+  try {
+    const c = JSON.parse(localStorage.getItem('jnt_config') || '{}');
+    Object.assign(CONFIG, c);
+  } catch(e){}
+}
+
+function saveConfig() {
+  localStorage.setItem('jnt_config', JSON.stringify(CONFIG));
+}
+
+function loadData() {
+  if (CONFIG.opMode === 'demo') {
+    // Load from localStorage or use defaults
+    try {
+      const d = JSON.parse(localStorage.getItem('jnt_demo_data') || 'null');
+      if (d) {
+        STATE.items   = d.items   || [...DEMO.items.map(x=>({...x}))];
+        STATE.logs    = d.logs    || [...DEMO.logs];
+        STATE.uploads = d.uploads || [...DEMO.uploads];
+      } else {
+        STATE.items   = DEMO.items.map(x=>({...x}));
+        STATE.logs    = [...DEMO.logs];
+        STATE.uploads = [...DEMO.uploads];
+      }
+    } catch(e) {
+      STATE.items   = DEMO.items.map(x=>({...x}));
+      STATE.logs    = [...DEMO.logs];
+      STATE.uploads = [...DEMO.uploads];
+    }
+  }
+}
+
+function saveDemoData() {
+  if (CONFIG.opMode !== 'demo') return;
+  localStorage.setItem('jnt_demo_data', JSON.stringify({
+    items: STATE.items,
+    logs:  STATE.logs,
+    uploads: STATE.uploads
+  }));
+}
+
+// ================================================================
+// GOOGLE SHEETS API (Live Mode)
+// ================================================================
+async function sheetsRequest(action, payload = {}) {
+  if (CONFIG.opMode !== 'live') return { success: false, error: 'demo mode' };
+  if (!CONFIG.appsScriptUrl) return { success: false, error: 'No Apps Script URL configured' };
+  try {
+    const resp = await fetch(CONFIG.appsScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...payload })
+    });
+    return await resp.json();
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+async function loadItemsFromSheets() {
+  const r = await sheetsRequest('getItems');
+  if (r.success) STATE.items = r.data;
+  return r.success;
+}
+
+async function addItemToSheets(item) {
+  return await sheetsRequest('addItem', { item });
+}
+
+async function updateItemInSheets(id, data) {
+  return await sheetsRequest('updateItem', { id, data });
+}
+
+async function deleteItemFromSheets(id) {
+  return await sheetsRequest('deleteItem', { id });
+}
+
+async function logPrintToSheets(log) {
+  return await sheetsRequest('addLog', { log });
+}
+
+async function getLogsFromSheets() {
+  return await sheetsRequest('getLogs');
+}
+
+// ================================================================
+// TOAST
+// ================================================================
+function toast(msg, type = 'info', duration = 3500) {
+  const icons = { success:'✅', error:'❌', info:'ℹ️', warning:'⚠️' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${icons[type]||'•'}</span><span>${msg}</span>`;
+  el.onclick = () => el.remove();
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => { el.style.transition='opacity 0.3s'; el.style.opacity='0'; setTimeout(()=>el.remove(), 300); }, duration);
+}
+
+// ================================================================
+// MODAL HELPERS
+// ================================================================
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ================================================================
+// SPLASH SCREEN
+// ================================================================
+function initSplash() {
+  setTimeout(() => {
+    const s = document.getElementById('splash');
+    s.style.opacity = '0';
+    setTimeout(() => {
+      s.remove();
+      afterSplash();
+    }, 500);
+  }, 2200);
+}
+
+function afterSplash() {
+  loadConfig();
+  loadData();
+  if (!CONFIG.setupDone) {
+    showSetup();
+  } else {
+    showLogin();
+  }
+}
+
+// ================================================================
+// SETUP WIZARD
+// ================================================================
+let setupSteps = [];
+
+function showSetup() {
+  document.getElementById('setup-screen').classList.remove('hidden');
+  setupSteps = ['step-1','step-2','step-3'];
+  renderStepDots();
+  goToSetupStep(0);
+}
+
+function renderStepDots() {
+  const cont = document.getElementById('step-dots');
+  const modeIsDemo = document.querySelector('input[name="op-mode"]:checked')?.value === 'demo';
+  const steps = modeIsDemo ? ['step-1','step-3'] : ['step-1','step-2','step-3'];
+  cont.innerHTML = steps.map((_,i) =>
+    `<div class="step-dot ${i === 0 ? 'active' : ''}"></div>`
+  ).join('');
+}
+
+function goToSetupStep(idx) {
+  document.querySelectorAll('.setup-step').forEach(s => s.classList.remove('active'));
+  const stepId = setupSteps[idx];
+  const el = document.getElementById(stepId);
+  if (el) el.classList.add('active');
+  STATE.setupStep = idx;
+
+  const dots = document.querySelectorAll('.step-dot');
+  dots.forEach((d,i) => {
+    d.className = 'step-dot' + (i < idx ? ' done' : i === idx ? ' active' : '');
+  });
+}
+
+function setupNext() {
+  const modeIsDemo = document.querySelector('input[name="op-mode"]:checked')?.value === 'demo';
+  if (STATE.setupStep === 0) {
+    CONFIG.opMode = modeIsDemo ? 'demo' : 'live';
+    if (modeIsDemo) {
+      setupSteps = ['step-1','step-3'];
+    } else {
+      setupSteps = ['step-1','step-2','step-3'];
+    }
+    renderStepDots();
+  }
+  if (STATE.setupStep < setupSteps.length - 1) {
+    goToSetupStep(STATE.setupStep + 1);
+  }
+}
+
+function setupPrev() {
+  if (STATE.setupStep > 0) goToSetupStep(STATE.setupStep - 1);
+}
+
+function finishSetup() {
+  const p1 = document.getElementById('admin-pass-setup').value.trim();
+  const p2 = document.getElementById('admin-pass-confirm').value.trim();
+  if (p1 && p1 !== p2) { toast('Passwords do not match', 'error'); return; }
+
+  if (CONFIG.opMode === 'live') {
+    const url = document.getElementById('apps-script-url')?.value.trim();
+    const sid = document.getElementById('sheet-id-input')?.value.trim();
+    if (!url) { toast('Please enter the Apps Script URL', 'error'); return; }
+    CONFIG.appsScriptUrl = url;
+    CONFIG.sheetId = sid;
+  }
+
+  if (p1) CONFIG.adminPassword = p1;
+  CONFIG.setupDone = true;
+  saveConfig();
+  document.getElementById('setup-screen').classList.add('hidden');
+  toast('Setup complete!', 'success');
+  showLogin();
+}
+
+// Mode label styling
+document.addEventListener('change', function(e){
+  if (e.target.name === 'op-mode') {
+    document.getElementById('mode-demo-label').style.borderColor =
+      e.target.value==='demo' ? 'var(--red)' : 'var(--border)';
+    document.getElementById('mode-live-label').style.borderColor =
+      e.target.value==='live' ? 'var(--red)' : 'var(--border)';
+  }
+});
+
+// ================================================================
+// LOGIN
+// ================================================================
+function showLogin() {
+  document.getElementById('login-page').classList.remove('hidden');
+}
+
+function switchLoginTab(tab) {
+  document.getElementById('encoder-login-form').classList.toggle('hidden', tab !== 'encoder');
+  document.getElementById('admin-login-form').classList.toggle('hidden', tab !== 'admin');
+  document.getElementById('tab-encoder').classList.toggle('active', tab === 'encoder');
+  document.getElementById('tab-admin').classList.toggle('active', tab === 'admin');
+}
+
+function loginEncoder() {
+  const name = document.getElementById('encoder-name-input').value.trim();
+  if (!name) { toast('Please enter your name', 'error'); return; }
+  STATE.role = 'encoder';
+  STATE.encoderName = name;
+  document.getElementById('login-page').classList.add('hidden');
+  initApp('encoder');
+}
+
+function loginAdmin() {
+  const pass = document.getElementById('admin-pass-input').value;
+  if (pass !== CONFIG.adminPassword) { toast('Incorrect password', 'error'); return; }
+  STATE.role = 'admin';
+  STATE.encoderName = 'Admin';
+  document.getElementById('login-page').classList.add('hidden');
+  initApp('admin');
+}
+
+function logout() {
+  STATE.role = null; STATE.encoderName = '';
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('admin-pass-input').value = '';
+  document.getElementById('encoder-name-input').value = '';
+  showLogin();
+}
+
+// ================================================================
+// APP INIT
+// ================================================================
+function initApp(role) {
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('role-badge-top').textContent = role === 'admin' ? 'ADMIN' : 'ENCODER';
+  document.getElementById('role-badge-top').className = `role-badge ${role}`;
+  document.getElementById('user-name-top').textContent = STATE.encoderName;
+
+  document.getElementById('admin-nav').classList.toggle('hidden', role !== 'admin');
+  document.getElementById('encoder-nav').classList.toggle('hidden', role !== 'encoder');
+
+  if (CONFIG.opMode === 'demo') {
+    document.getElementById('demo-banner-admin').classList.remove('hidden');
+    document.getElementById('demo-banner-enc').classList.remove('hidden');
+  }
+
+  if (role === 'admin') {
+    showPage('admin-dashboard', 'admin-nav');
+    loadAdminDashboard();
+    loadSettingsPage();
+  } else {
+    // Build encoder banner
+    renderEncoderBanner();
+    showPage('encoder-items', 'encoder-nav');
+    loadEncoderItems();
+  }
+
+  // populate Apps Script code
+  document.getElementById('apps-script-code').textContent = getAppsScriptCode();
+}
+
+// ================================================================
+// NAVIGATION
+// ================================================================
+function showPage(pageId, navId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const el = document.getElementById('page-' + pageId);
+  if (el) el.classList.add('active');
+
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navEl = document.querySelector(`#${navId} .nav-item[data-page="${pageId}"]`);
+  if (navEl) navEl.classList.add('active');
+
+  STATE.currentPage = pageId;
+
+  // Lazy load data for pages
+  if (pageId === 'admin-items')    renderAdminItemsTable();
+  if (pageId === 'admin-reports')  loadPrintLogs();
+  if (pageId === 'admin-tally')    loadTallyReport();
+  if (pageId === 'admin-upload')   { populateUploadItemSelect(); loadUploadHistory(); }
+  if (pageId === 'encoder-summary')  loadEncoderSummary();
+  if (pageId === 'encoder-ipriprint') loadEncoderIpriprint();
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ================================================================
+// ADMIN DASHBOARD
+// ================================================================
+async function loadAdminDashboard() {
+  if (CONFIG.opMode === 'live') {
+    const r = await loadItemsFromSheets();
+    if (!r) toast('Could not load from Google Sheets', 'warning');
+  }
+  updateAdminStats();
+  renderDashboardItems();
+  renderDashboardLogs();
+}
+
+function updateAdminStats() {
+  const total    = STATE.items.length;
+  const printed  = STATE.items.reduce((s,i) => s + (i.printed||0), 0);
+  const remaining= STATE.items.reduce((s,i) => s + (i.remaining||0), 0);
+  const sessions = STATE.logs.length;
+
+  document.getElementById('stat-total-items').textContent    = total;
+  document.getElementById('stat-total-printed').textContent  = printed.toLocaleString();
+  document.getElementById('stat-total-remaining').textContent= remaining.toLocaleString();
+  document.getElementById('stat-print-sessions').textContent = sessions;
+}
+
+function renderDashboardItems() {
+  const cont = document.getElementById('dashboard-items-list');
+  if (!STATE.items.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📦</div><h3>No items yet</h3></div>`;
+    return;
+  }
+  const rows = STATE.items.slice(0,5).map(item => {
+    const pct = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
+    const statusClass = item.remaining === 0 ? 'badge-success' : 'badge-warning';
+    const statusText  = item.remaining === 0 ? 'Done' : 'Pending';
+    return `<tr>
+      <td><span class="bold">${item.name}</span></td>
+      <td>${item.total.toLocaleString()}</td>
+      <td class="text-green bold">${item.printed.toLocaleString()}</td>
+      <td>
+        <div style="min-width:80px;">
+          <div class="progress-wrap" style="height:6px;margin-bottom:0.3rem;">
+            <div class="progress-bar green" style="width:${pct}%"></div>
+          </div>
+          <span style="font-size:0.75rem;color:var(--text-muted)">${pct}%</span>
+        </div>
+      </td>
+      <td><span class="badge ${statusClass}">${statusText}</span></td>
+    </tr>`;
+  }).join('');
+  cont.innerHTML = `<table><thead><tr>
+    <th>Item</th><th>Total</th><th>Printed</th><th>Progress</th><th>Status</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderDashboardLogs() {
+  const cont = document.getElementById('dashboard-logs-list');
+  const recent = [...STATE.logs].reverse().slice(0,5);
+  if (!recent.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">🕐</div><h3>No logs yet</h3></div>`;
+    return;
+  }
+  cont.innerHTML = recent.map(log => `
+    <div class="ipriprint-row">
+      <div>
+        <div style="font-weight:700;font-size:0.88rem;">${log.encoder}</div>
+        <div class="text-muted" style="font-size:0.75rem;">${log.item} • pp${log.pagesFrom}–${log.pagesTo}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="text-green bold">${log.pages} pages</div>
+        <div class="text-muted" style="font-size:0.73rem;">${formatTime(log.timestamp)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function refreshAllData() {
+  loadData();
+  loadAdminDashboard();
+  toast('Data refreshed', 'success');
+}
+
+// ================================================================
+// ADMIN ITEMS TABLE
+// ================================================================
+function renderAdminItemsTable(filter) {
+  let items = [...STATE.items];
+  const search = document.getElementById('items-search')?.value.toLowerCase() || '';
+  const filt   = document.getElementById('items-filter')?.value || 'all';
+
+  if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
+  if (filt === 'pending') items = items.filter(i => i.remaining > 0);
+  if (filt === 'done')    items = items.filter(i => i.remaining === 0);
+
+  const cont = document.getElementById('admin-items-table');
+  if (!items.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📦</div><h3>No items found</h3></div>`;
+    return;
+  }
+  const rows = items.map(item => {
+    const pct = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
+    const statusClass = item.remaining === 0 ? 'badge-success' : 'badge-warning';
+    const statusText  = item.remaining === 0 ? '✓ Done' : '⏳ Pending';
+    return `<tr>
+      <td><span class="bold">${item.name}</span><br><span class="text-muted" style="font-size:0.73rem;">#${item.id}</span></td>
+      <td class="bold">${item.total.toLocaleString()}</td>
+      <td class="text-green bold">${item.printed.toLocaleString()}</td>
+      <td class="text-yellow bold">${item.remaining.toLocaleString()}</td>
+      <td>
+        <div style="min-width:100px;">
+          <div class="progress-wrap">
+            <div class="progress-bar green" style="width:${pct}%"></div>
+          </div>
+          <span style="font-size:0.73rem;color:var(--text-muted);margin-top:0.2rem;display:block;">${pct}% printed</span>
+        </div>
+      </td>
+      <td><span class="badge ${statusClass}">${statusText}</span></td>
+      <td>
+        <div style="display:flex;gap:0.4rem;">
+          <button class="btn btn-ghost btn-sm" onclick="openEditItemModal('${item.id}')" title="Edit">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="openDeleteModal('${item.id}')" title="Delete">🗑</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+  cont.innerHTML = `<table><thead><tr>
+    <th>Item Name</th><th>Total</th><th>Printed</th><th>Remaining</th><th>Progress</th><th>Status</th><th>Actions</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function filterItems() { renderAdminItemsTable(); }
+
+function openAddItemModal() {
+  document.getElementById('item-modal-title').textContent = 'Add New Item';
+  document.getElementById('item-name-input').value = '';
+  document.getElementById('item-qty-input').value = '';
+  document.getElementById('item-id-input').value = '';
+  document.getElementById('item-edit-id').value = '';
+  openModal('item-modal');
+}
+
+function openEditItemModal(id) {
+  const item = STATE.items.find(i => i.id === id);
+  if (!item) return;
+  document.getElementById('item-modal-title').textContent = 'Edit Item';
+  document.getElementById('item-name-input').value = item.name;
+  document.getElementById('item-qty-input').value  = item.total;
+  document.getElementById('item-id-input').value   = item.id;
+  document.getElementById('item-edit-id').value    = item.id;
+  openModal('item-modal');
+}
+
+async function saveItem() {
+  const name  = document.getElementById('item-name-input').value.trim();
+  const qty   = parseInt(document.getElementById('item-qty-input').value, 10);
+  const editId= document.getElementById('item-edit-id').value.trim();
+  const manId = document.getElementById('item-id-input').value.trim();
+
+  if (!name) { toast('Item name is required', 'error'); return; }
+  if (!qty || qty < 1) { toast('Please enter a valid quantity', 'error'); return; }
+
+  if (editId) {
+    // Update
+    const idx = STATE.items.findIndex(i => i.id === editId);
+    if (idx >= 0) {
+      const printed = STATE.items[idx].printed || 0;
+      STATE.items[idx] = { ...STATE.items[idx], name, total: qty, remaining: qty - printed };
+      if (CONFIG.opMode === 'live') await updateItemInSheets(editId, STATE.items[idx]);
+      toast('Item updated', 'success');
+    }
+  } else {
+    // Add new
+    const id = manId || 'itm' + Date.now();
+    const newItem = { id, name, total: qty, printed: 0, remaining: qty };
+    STATE.items.push(newItem);
+    if (CONFIG.opMode === 'live') await addItemToSheets(newItem);
+    toast('Item added', 'success');
+  }
+  saveDemoData();
+  closeModal('item-modal');
+  renderAdminItemsTable();
+  updateAdminStats();
+  populateUploadItemSelect();
+}
+
+function openDeleteModal(id) {
+  const item = STATE.items.find(i => i.id === id);
+  if (!item) return;
+  STATE.deleteTargetId = id;
+  document.getElementById('delete-item-name').textContent = item.name;
+  openModal('delete-modal');
+}
+
+async function confirmDeleteItem() {
+  const id = STATE.deleteTargetId;
+  STATE.items = STATE.items.filter(i => i.id !== id);
+  if (CONFIG.opMode === 'live') await deleteItemFromSheets(id);
+  saveDemoData();
+  closeModal('delete-modal');
+  renderAdminItemsTable();
+  updateAdminStats();
+  toast('Item deleted', 'success');
+}
+
+// ================================================================
+// ADMIN UPLOAD
+// ================================================================
+function populateUploadItemSelect() {
+  const sel = document.getElementById('upload-item-select');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— Select Item —</option>' +
+    STATE.items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+}
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('dragover');
+  const files = e.dataTransfer.files;
+  if (files.length) processFileSelection(files[0]);
+}
+
+function handleFileSelect(e) {
+  if (e.target.files.length) processFileSelection(e.target.files[0]);
+}
+
+function processFileSelection(file) {
+  if (!file.type.includes('pdf')) { toast('Only PDF files are allowed', 'error'); return; }
+  if (file.size > 52428800) { toast('File too large (max 50MB)', 'error'); return; }
+  STATE.pendingFile = file;
+
+  const reader = new FileReader();
+  reader.onload = (e) => { STATE.pendingFileData = e.target.result; };
+  reader.readAsArrayBuffer(file);
+
+  const sizeStr = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+  document.getElementById('upload-file-list').innerHTML = `
+    <div class="upload-file-item">
+      <span class="upload-file-icon">📄</span>
+      <div class="upload-file-info">
+        <div class="upload-file-name">${file.name}</div>
+        <div class="upload-file-size">${sizeStr}</div>
+      </div>
+      <span class="badge badge-info">Ready</span>
+    </div>`;
+  document.getElementById('upload-btn').disabled = false;
+}
+
+async function processUpload() {
+  const encoderName = document.getElementById('upload-encoder-name').value.trim();
+  const itemId = document.getElementById('upload-item-select').value;
+
+  if (!STATE.pendingFile) { toast('No file selected', 'error'); return; }
+  if (!encoderName) { toast('Enter encoder name', 'error'); return; }
+  if (!itemId) { toast('Select an item', 'error'); return; }
+
+  const item = STATE.items.find(i => i.id === itemId);
+  if (!item) { toast('Item not found', 'error'); return; }
+
+  // Count pages using pdf.js
+  const btn = document.getElementById('upload-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Processing…';
+
+  try {
+    let pageCount = 0;
+    if (STATE.pendingFileData) {
+      try {
+        const pdfDoc = await pdfjsLib.getDocument({ data: STATE.pendingFileData.slice(0) }).promise;
+        pageCount = pdfDoc.numPages;
+      } catch(e) {
+        pageCount = item.remaining; // fallback
+      }
+    } else {
+      pageCount = item.remaining;
+    }
+
+    const upload = {
+      id: 'upl' + Date.now(),
+      filename: STATE.pendingFile.name,
+      encoder: encoderName,
+      item: item.name,
+      itemId: itemId,
+      pages: pageCount,
+      uploadDate: nowStr(),
+      uploadBy: 'Admin',
+      fileData: null // not stored for security; only metadata
+    };
+
+    STATE.uploads.push(upload);
+
+    // Also store file data in sessionStorage for printing
+    try {
+      const key = `pdf_${encoderName}_${itemId}`;
+      // Convert ArrayBuffer to Base64 for storage
+      const bytes = new Uint8Array(STATE.pendingFileData);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+      sessionStorage.setItem(key, btoa(binary));
+      sessionStorage.setItem(key + '_pages', pageCount);
+      sessionStorage.setItem(key + '_name', STATE.pendingFile.name);
+    } catch(e) { /* storage full or unavailable */ }
+
+    if (CONFIG.opMode === 'live') {
+      await sheetsRequest('addUpload', { upload });
+    }
+    saveDemoData();
+    loadUploadHistory();
+
+    toast(`✅ Uploaded: ${STATE.pendingFile.name} (${pageCount} pages)`, 'success');
+    btn.innerHTML = '✅ Uploaded!';
+    setTimeout(() => { btn.innerHTML = '📤 Upload & Process'; btn.disabled = false; }, 2000);
+    STATE.pendingFile = null;
+    STATE.pendingFileData = null;
+    document.getElementById('upload-file-list').innerHTML = '';
+    document.getElementById('upload-encoder-name').value = '';
+
+  } catch(e) {
+    toast('Upload failed: ' + e.message, 'error');
+    btn.innerHTML = '📤 Upload & Process';
+    btn.disabled = false;
+  }
+}
+
+function loadUploadHistory() {
+  const cont = document.getElementById('upload-history-list');
+  if (!STATE.uploads.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📂</div><h3>No uploads yet</h3></div>`;
+    return;
+  }
+  cont.innerHTML = [...STATE.uploads].reverse().map(u => `
+    <div class="upload-file-item">
+      <span class="upload-file-icon">📄</span>
+      <div class="upload-file-info">
+        <div class="upload-file-name">${u.filename}</div>
+        <div class="upload-file-size">
+          <span class="tag">${u.encoder}</span>
+          <span class="tag" style="margin-left:0.3rem;">${u.item}</span>
+          <span class="text-muted" style="margin-left:0.3rem;font-size:0.73rem;">${u.pages} pages</span>
+        </div>
+        <div class="text-muted" style="font-size:0.72rem;margin-top:0.2rem;">${u.uploadDate}</div>
+      </div>
+      <span class="badge badge-success">Uploaded</span>
+    </div>
+  `).join('');
+}
+
+// ================================================================
+// ADMIN PRINT LOGS
+// ================================================================
+function loadPrintLogs() {
+  renderPrintLogsTable();
+  populateLogsEncoderFilter();
+}
+
+function renderPrintLogsTable() {
+  let logs = [...STATE.logs].reverse();
+  const search  = document.getElementById('logs-search')?.value.toLowerCase() || '';
+  const encoder = document.getElementById('logs-encoder-filter')?.value || 'all';
+  const date    = document.getElementById('logs-date-filter')?.value || 'all';
+
+  if (search)  logs = logs.filter(l => l.encoder.toLowerCase().includes(search) || l.item.toLowerCase().includes(search));
+  if (encoder !== 'all') logs = logs.filter(l => l.encoder === encoder);
+  if (date === 'today') {
+    const today = new Date().toISOString().slice(0,10);
+    logs = logs.filter(l => l.timestamp.startsWith(today));
+  } else if (date === 'week') {
+    const weekAgo = new Date(Date.now() - 7*864e5).toISOString().slice(0,10);
+    logs = logs.filter(l => l.timestamp >= weekAgo);
+  }
+
+  const cont = document.getElementById('print-logs-table');
+  if (!logs.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📋</div><h3>No logs found</h3></div>`;
+    return;
+  }
+  const rows = logs.map(l => `<tr>
+    <td><span class="bold">${l.encoder}</span></td>
+    <td>${l.item}</td>
+    <td><span class="badge badge-info">pp ${l.pagesFrom}–${l.pagesTo}</span></td>
+    <td class="text-green bold">${l.pages}</td>
+    <td><span class="badge badge-muted">Batch ${l.batch}</span></td>
+    <td class="text-muted" style="font-size:0.8rem;">${formatTime(l.timestamp)}</td>
+  </tr>`).join('');
+  cont.innerHTML = `<table><thead><tr>
+    <th>Encoder</th><th>Item</th><th>Pages Range</th><th>Pages Printed</th><th>Batch</th><th>Timestamp</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function filterLogs() { renderPrintLogsTable(); }
+
+function populateLogsEncoderFilter() {
+  const sel = document.getElementById('logs-encoder-filter');
+  if (!sel) return;
+  const encoders = [...new Set(STATE.logs.map(l => l.encoder))];
+  sel.innerHTML = '<option value="all">All Encoders</option>' +
+    encoders.map(e => `<option value="${e}">${e}</option>`).join('');
+}
+
+function exportLogs() {
+  const rows = [['Encoder','Item','Pages From','Pages To','Pages Printed','Batch','Timestamp']];
+  STATE.logs.forEach(l => rows.push([l.encoder, l.item, l.pagesFrom, l.pagesTo, l.pages, l.batch, l.timestamp]));
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\
+');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `jnt_print_logs_${nowStr().replace(/[: ]/g,'_')}.csv`;
+  a.click();
+  toast('CSV exported', 'success');
+}
+
+// ================================================================
+// ADMIN TALLY REPORT
+// ================================================================
+function loadTallyReport() {
+  const cont = document.getElementById('tally-report-container');
+  if (!STATE.items.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">🔢</div><h3>No items found</h3></div>`;
+    return;
+  }
+  const totalPages   = STATE.items.reduce((s,i) => s+i.total, 0);
+  const totalPrinted = STATE.items.reduce((s,i) => s+i.printed, 0);
+  const totalRemain  = STATE.items.reduce((s,i) => s+i.remaining, 0);
+  const pct = totalPages > 0 ? Math.round((totalPrinted/totalPages)*100) : 0;
+
+  cont.innerHTML = `
+  <div class="stats-grid" style="margin-bottom:1.5rem;">
+    <div class="stat-card blue">
+      <div class="stat-label">Total Pages</div>
+      <div class="stat-value">${totalPages.toLocaleString()}</div>
+      <div class="stat-sub">All items combined</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Total Printed</div>
+      <div class="stat-value">${totalPrinted.toLocaleString()}</div>
+      <div class="stat-sub">${pct}% complete</div>
+    </div>
+    <div class="stat-card yellow">
+      <div class="stat-label">Total Remaining</div>
+      <div class="stat-value">${totalRemain.toLocaleString()}</div>
+      <div class="stat-sub">${100-pct}% pending</div>
+    </div>
+    <div class="stat-card red">
+      <div class="stat-label">Items Complete</div>
+      <div class="stat-value">${STATE.items.filter(i=>i.remaining===0).length} / ${STATE.items.length}</div>
+      <div class="stat-sub">Fully printed items</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><span class="card-title">📊 Per-Item Tally</span></div>
+    <div style="margin-bottom:1rem;">
+      <div class="progress-wrap" style="height:14px;">
+        <div class="progress-bar green" style="width:${pct}%"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:0.4rem;font-size:0.8rem;">
+        <span class="text-green bold">Printed: ${totalPrinted.toLocaleString()}</span>
+        <span class="text-muted">${pct}% overall</span>
+        <span class="text-yellow bold">Remaining: ${totalRemain.toLocaleString()}</span>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table><thead><tr>
+        <th>#</th><th>Item Name</th><th>Total</th><th>Printed</th><th>Remaining</th><th>Progress</th><th>Status</th>
+      </tr></thead><tbody>
+      ${STATE.items.map((item,idx) => {
+        const p = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
+        const done = item.remaining === 0;
+        return `<tr>
+          <td class="text-muted">${idx+1}</td>
+          <td><span class="bold">${item.name}</span></td>
+          <td>${item.total.toLocaleString()}</td>
+          <td class="text-green bold">${item.printed.toLocaleString()}</td>
+          <td class="${done ? 'text-muted' : 'text-yellow bold'}">${item.remaining.toLocaleString()}</td>
+          <td>
+            <div style="min-width:80px;">
+              <div class="progress-wrap" style="height:6px;">
+                <div class="progress-bar ${done?'':'green'}" style="width:${p}%;${done?'background:var(--green)':''}"></div>
+              </div>
+              <span style="font-size:0.72rem;color:var(--text-muted)">${p}%</span>
+            </div>
+          </td>
+          <td><span class="badge ${done ? 'badge-success' : 'badge-warning'}">${done ? '✓ Complete' : '⏳ Pending'}</span></td>
+        </tr>`;
+      }).join('')}
+      </tbody></table>
+    </div>
+  </div>`;
+}
+
+// ================================================================
+// SETTINGS PAGE
+// ================================================================
+function loadSettingsPage() {
+  document.getElementById('op-mode-setting').value = CONFIG.opMode;
+  document.getElementById('apps-script-url-setting').value = CONFIG.appsScriptUrl || '';
+  document.getElementById('sheet-id-setting').value = CONFIG.sheetId || '';
+  document.getElementById('max-pages-setting').value = CONFIG.maxPagesPerBatch;
+}
+
+function saveSettings() {
+  CONFIG.opMode = document.getElementById('op-mode-setting').value;
+  CONFIG.appsScriptUrl = document.getElementById('apps-script-url-setting').value.trim();
+  CONFIG.sheetId = document.getElementById('sheet-id-setting').value.trim();
+  CONFIG.maxPagesPerBatch = parseInt(document.getElementById('max-pages-setting').value, 10) || 200;
+  saveConfig();
+  toast('Settings saved', 'success');
+}
+
+async function testConnection() {
+  const statusEl = document.getElementById('conn-status');
+  statusEl.textContent = '⏳ Testing…';
+  const r = await sheetsRequest('ping');
+  if (r.success) {
+    statusEl.textContent = '✅ Connected!';
+    statusEl.style.color = 'var(--green)';
+  } else {
+    statusEl.textContent = '❌ ' + (r.error || 'Failed');
+    statusEl.style.color = 'var(--red-light)';
+  }
+}
+
+function changeAdminPassword() {
+  const curr = document.getElementById('curr-pass').value;
+  const newP  = document.getElementById('new-pass').value;
+  const conf  = document.getElementById('confirm-pass').value;
+  if (curr !== CONFIG.adminPassword) { toast('Current password incorrect', 'error'); return; }
+  if (!newP) { toast('New password required', 'error'); return; }
+  if (newP !== conf) { toast('Passwords do not match', 'error'); return; }
+  CONFIG.adminPassword = newP;
+  saveConfig();
+  document.getElementById('curr-pass').value = '';
+  document.getElementById('new-pass').value = '';
+  document.getElementById('confirm-pass').value = '';
+  toast('Password changed', 'success');
+}
+
+function copyAppsScript() {
+  const code = document.getElementById('apps-script-code').textContent;
+  navigator.clipboard.writeText(code).then(()=>toast('Code copied!','success')).catch(()=>toast('Copy failed','error'));
+}
+
+// ================================================================
+// ENCODER: ITEMS & PRINT
+// ================================================================
+function renderEncoderBanner() {
+  const wrap = document.getElementById('encoder-banner-wrap');
+  const initial = STATE.encoderName.charAt(0).toUpperCase();
+  wrap.innerHTML = `
+    <div class="encoder-banner">
+      <div style="display:flex;align-items:center;gap:0.9rem;">
+        <div class="encoder-avatar">${initial}</div>
+        <div class="encoder-info">
+          <div class="name">${STATE.encoderName}</div>
+          <div class="sub">Data Encoder — Waybill Printing System</div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:0.78rem;color:var(--text-muted);">Session started</div>
+        <div style="font-size:0.85rem;font-weight:700;">${new Date().toLocaleTimeString()}</div>
+      </div>
+    </div>`;
+}
+
+function loadEncoderItems() {
+  renderEncoderItemsGrid();
+}
+
+function renderEncoderItemsGrid() {
+  let items = [...STATE.items];
+  const search = document.getElementById('enc-items-search')?.value.toLowerCase() || '';
+  const filt   = document.getElementById('enc-items-filter')?.value || 'all';
+
+  if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
+  if (filt === 'pending') items = items.filter(i => i.remaining > 0);
+  if (filt === 'done')    items = items.filter(i => i.remaining === 0);
+
+  const grid = document.getElementById('encoder-items-grid');
+  if (!items.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📦</div><h3>No items found</h3></div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map(item => {
+    const pct  = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
+    const done = item.remaining === 0;
+
+    // Find if this encoder has a PDF assigned
+    const hasPdf = STATE.uploads.some(u =>
+      (u.encoder === STATE.encoderName || u.encoder === 'all') &&
+      (u.item === item.name || u.itemId === item.id)
+    );
+
+    // Calculate next batch info
+    const batches = calcBatches(item.remaining);
+    const nextBatch = batches[0];
+
+    return `
+    <div class="item-card">
+      <div class="item-card-header">
+        <div class="item-name">${item.name}</div>
+        <span class="badge ${done ? 'badge-success' : 'badge-warning'}">${done ? 'Done' : 'Pending'}</span>
+      </div>
+
+      <div class="tally-bar-wrap">
+        <div class="progress-wrap">
+          <div class="progress-bar green" style="width:${pct}%"></div>
+        </div>
+        <div class="tally-nums">
+          <span class="printed">✅ ${item.printed.toLocaleString()} printed</span>
+          <span class="remaining">⏳ ${item.remaining.toLocaleString()} remaining</span>
+        </div>
+      </div>
+
+      <div class="item-meta">
+        <div class="item-meta-row">
+          <span class="label">Total Pages</span>
+          <span class="value">${item.total.toLocaleString()}</span>
+        </div>
+        <div class="item-meta-row">
+          <span class="label">Progress</span>
+          <span class="value highlight">${pct}%</span>
+        </div>
+        ${!done && nextBatch ? `<div class="item-meta-row">
+          <span class="label">Next Batch</span>
+          <span class="value text-blue">pp${nextBatch.from}–${nextBatch.to} (${nextBatch.count} pgs)</span>
+        </div>` : ''}
+        <div class="item-meta-row">
+          <span class="label">PDF File</span>
+          <span class="value ${hasPdf ? 'text-green' : 'text-muted'}">${hasPdf ? '✅ Assigned' : '⚠️ Not Assigned'}</span>
+        </div>
+      </div>
+
+      <button class="btn btn-print w-full" onclick="openPrintModal('${item.id}')"
+        ${done ? 'disabled' : ''}>
+        ${done ? '✅ Fully Printed' : '🖨 PRINT'}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function filterEncoderItems() { renderEncoderItemsGrid(); }
+
+// ================================================================
+// BATCH CALCULATION
+// ================================================================
+function calcBatches(remaining, startPage = null) {
+  if (remaining <= 0) return [];
+  const maxBatch = CONFIG.maxPagesPerBatch;
+  const batches = [];
+  let page = startPage !== null ? startPage : 1;
+  let left  = remaining;
+  let batchNum = 1;
+
+  while (left > 0) {
+    const count = Math.min(left, maxBatch);
+    batches.push({ from: page, to: page + count - 1, count, batch: batchNum });
+    page += count;
+    left -= count;
+    batchNum++;
+  }
+  return batches;
+}
+
+function calcBatchesFromItem(item) {
+  const printed = item.printed || 0;
+  return calcBatches(item.remaining, printed + 1);
+}
+
+// ================================================================
+// PRINT MODAL
+// ================================================================
+async function openPrintModal(itemId) {
+  const item = STATE.items.find(i => i.id === itemId);
+  if (!item || item.remaining <= 0) return;
+
+  STATE.pendingPrintItem = item;
+  
+  // Calculate batches for this item
+  STATE.printBatches = calcBatchesFromItem(item);
+  STATE.currentBatchIndex = 0;
+  STATE.allPagesCount = item.total;
+
+  // Build modal content
+  document.getElementById('print-modal-body').innerHTML = await buildPrintModalContent(item);
+  openModal('print-modal');
+
+  // Load PDF preview for first batch
+  if (STATE.printBatches.length > 0) {
+    await loadPdfPreview(STATE.printBatches[0]);
+  }
+}
+
+async function buildPrintModalContent(item) {
+  const batches = STATE.printBatches;
+  const currentBatch = batches[0] || {};
+  const hasPdf = STATE.uploads.some(u =>
+    (u.encoder === STATE.encoderName || u.encoder === 'all') &&
+    (u.item === item.name || u.itemId === item.id)
+  );
+
+  const pdfKey = `pdf_${STATE.encoderName}_${item.id}`;
+  const pdfExists = sessionStorage.getItem(pdfKey) !== null;
+
+  return `
+    <div class="print-info-grid">
+      <div class="print-info-cell">
+        <div class="label">Item</div>
+        <div class="value">${item.name}</div>
+      </div>
+      <div class="print-info-cell">
+        <div class="label">Total Pages</div>
+        <div class="value">${item.total.toLocaleString()}</div>
+      </div>
+      <div class="print-info-cell">
+        <div class="label">Already Printed</div>
+        <div class="value text-green">${item.printed.toLocaleString()}</div>
+      </div>
+      <div class="print-info-cell">
+        <div class="label">Remaining</div>
+        <div class="value text-yellow bold">${item.remaining.toLocaleString()}</div>
+      </div>
+    </div>
+
+    ${batches.length > 0 ? `
+    <div style="margin-bottom:1.5rem;">
+      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.8rem;">
+        <div style="font-size:1.2rem;font-weight:700;">📄 Print Batches</div>
+        <span class="badge badge-info">${batches.length} batch${batches.length > 1 ? 'es' : ''}</span>
+      </div>
+      
+      <div class="batch-list" id="batch-list">
+        ${batches.map((batch, idx) => `
+          <div class="batch-item ${idx === 0 ? 'active' : ''} ${idx > 0 ? 'done' : ''}" onclick="switchBatch(${idx})">
+            <div class="batch-num">${idx + 1}</div>
+            <div style="flex:1;">
+              <div style="font-weight:700;">pp${batch.from}–${batch.to}</div>
+              <div class="text-muted" style="font-size:0.8rem;">${batch.count.toLocaleString()} pages</div>
+            </div>
+            <div style="text-align:right;">
+              <span class="text-green bold">${batch.count}pgs</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ` : ''}
+
+    <div style="margin-bottom:1.5rem;">
+      <canvas id="pdf-preview-canvas" style="max-height:500px;"></canvas>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:1rem;">
+      ${!hasPdf || !pdfExists ? `
+        <div class="alert alert-warning">
+          <span class="alert-icon">⚠️</span>
+          <div>
+            <strong>No PDF file assigned</strong><br>
+            Ask your admin to upload the IPRIPRINT PDF file for this item.
+          </div>
+        </div>
+      ` : `
+        <div class="alert alert-success">
+          <span class="alert-icon">✅</span>
+          <div>
+            <strong>PDF Ready!</strong><br>
+            ${STATE.pendingFileData ? 'File loaded locally' : `File available in storage (${sessionStorage.getItem(pdfKey + '_pages')} pages)`}
+          </div>
+        </div>
+      `}
+
+      <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-lg" onclick="closeModal('print-modal')" style="flex:1;min-width:140px;">
+          ❌ Cancel
+        </button>
+        ${batches.length > 0 ? `
+          <button class="btn btn-print btn-lg" id="print-batch-btn" onclick="printCurrentBatch()" 
+                  ${!hasPdf || !pdfExists ? 'disabled' : ''} style="flex:1;min-width:140px;">
+            🖨 Print This Batch
+          </button>
+        ` : ''}
+        ${item.remaining > CONFIG.maxPagesPerBatch ? `
+          <button class="btn btn-success btn-lg" onclick="printAllBatches()" 
+                  ${!hasPdf || !pdfExists ? 'disabled' : ''} style="flex:1;min-width:140px;">
+            🚀 Print All Batches
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
+async function loadPdfPreview(batch) {
+  const canvas = document.getElementById('pdf-preview-canvas');
+  if (!canvas) return;
+
+  const pdfKey = `pdf_${STATE.encoderName}_${STATE.pendingPrintItem.id}`;
+  const pdfData64 = sessionStorage.getItem(pdfKey);
+  
+  if (!pdfData64) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  try {
+    // Convert base64 back to ArrayBuffer
+    const binary = atob(pdfData64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const pdfData = bytes.buffer;
+
+    const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    STATE.currentPdfDoc = pdfDoc;
+
+    // Render first page of batch as preview
+    const pageNum = Math.max(1, batch.from);
+    const page = await pdfDoc.getPage(pageNum);
+    
+    const scale = 0.8;
+    const viewport = page.getViewport({ scale });
+    
+    canvas.height = viewport.height;
+    canvas.width = viewport.width;
+    canvas.style.display = 'block';
+    
+    const context = canvas.getContext('2d');
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+
+    // Add page number overlay
+    context.fillStyle = 'rgba(0,0,0,0.8)';
+    context.fillRect(20, 20, 120, 40);
+    context.fillStyle = '#fff';
+    context.font = 'bold 16px Arial';
+    context.textAlign = 'left';
+    context.fillText(`Page ${pageNum}`, 30, 45);
+
+  } catch(e) {
+    console.error('PDF preview error:', e);
+    canvas.style.display = 'none';
+  }
+}
+
+function switchBatch(index) {
+  STATE.currentBatchIndex = index;
+  
+  // Update batch list styling
+  document.querySelectorAll('.batch-item').forEach((el, i) => {
+    el.className = `batch-item ${i < index ? 'done' : ''} ${i === index ? 'active' : ''}`;
+  });
+
+  // Load preview for new batch
+  loadPdfPreview(STATE.printBatches[index]);
+}
+
+// ================================================================
+// PRINTING FUNCTIONS
+// ================================================================
+async function printCurrentBatch() {
+  const batch = STATE.printBatches[STATE.currentBatchIndex];
+  if (!batch) return;
+
+  if (confirm(`Print pages ${batch.from}-${batch.to} (${batch.count} pages)?`)) {
+    await executePrintBatch(batch);
+  }
+}
+
+async function printAllBatches() {
+  if (confirm(`Print ALL remaining batches (${STATE.printBatches.length} batches, ${STATE.pendingPrintItem.remaining} pages)?`)) {
+    for (let i = 0; i < STATE.printBatches.length; i++) {
+      STATE.currentBatchIndex = i;
+      await executePrintBatch(STATE.printBatches[i]);
+    }
+  }
+}
+
+async function executePrintBatch(batch) {
+  const printBtn = document.getElementById('print-batch-btn');
+  printBtn.disabled = true;
+  printBtn.innerHTML = '<span class="spin"></span> Printing…';
+
+  try {
+    // Load PDF data
+    const pdfKey = `pdf_${STATE.encoderName}_${STATE.pendingPrintItem.id}`;
+    const pdfData64 = sessionStorage.getItem(pdfKey);
+    
+    if (!pdfData64) {
+      throw new Error('PDF file not found in storage');
+    }
+
+    // Convert base64 to ArrayBuffer
+    const binary = atob(pdfData64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const pdfData = bytes.buffer;
+
+    // Create print window with specific page range
+    const printWindow = window.open('', 'print-frame');
+    const pdfDoc = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    
+    // Generate HTML with page range
+    let printHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Print ${STATE.pendingPrintItem.name} - pp${batch.from}-${batch.to}</title>
+        <style>
+          body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+          .print-header {
+            text-align: center; margin-bottom: 30px; padding-bottom: 20px;
+            border-bottom: 2px solid #e60012; color: #333;
+          }
+          .print-header h1 { color: #e60012; font-size: 24px; margin: 0 0 10px 0; }
+          .print-header p { margin: 0; font-size: 14px; color: #666; }
+          .page-container { margin-bottom: 20px; page-break-inside: avoid; }
+          .page-number { 
+            position: absolute; top: 10px; right: 20px; 
+            background: rgba(230,0,18,0.9); color: white; 
+            padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;
+          }
+          @media print { body { padding: 0; } .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="print-header">
+          <h1>${STATE.pendingPrintItem.name}</h1>
+          <p>Printed by ${STATE.encoderName} • Batch ${STATE.currentBatchIndex + 1} • Pages ${batch.from}-${batch.to}</p>
+          <p style="font-size: 12px; margin-top: 10px;">${new Date().toLocaleString()}</p>
+        </div>
+    `;
+
+    // Render each page in batch
+    for (let pageNum = batch.from; pageNum <= batch.to; pageNum++) {
+      const page = await pdfDoc.getPage(pageNum);
+      const scale = 1.5; // Higher scale for print quality
+      const viewport = page.getViewport({ scale });
+      
+      const canvas = document.createElement('canvas');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      
+      const context = canvas.getContext('2d');
+      await page.render({ canvasContext: context, viewport }).promise;
+      
+      printHtml += `
+        <div class="page-container" style="position: relative; width: ${viewport.width}px; height: ${viewport.height}px;">
+          <div class="page-number">Page ${pageNum}</div>
+          <img src="${canvas.toDataURL('image/png')}" style="width: 100%; height: 100%; display: block;">
+        </div>
+      `;
+    }
+
+    printHtml += `
+        <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 2px solid #e60012; color: #666; font-size: 12px;">
+          <p>✓ Batch ${STATE.currentBatchIndex + 1} Complete • Total: ${batch.count} pages</p>
+          <p>JNT Waybill Printing System</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+
+    // Log the print action
+    const logEntry = {
+      id: 'log' + Date.now(),
+      encoder: STATE.encoderName,
+      item: STATE.pendingPrintItem.name,
+      itemId: STATE.pendingPrintItem.id,
+      pages: batch.count,
+      pagesFrom: batch.from,
+      pagesTo: batch.to,
+      batch: STATE.currentBatchIndex + 1,
+      timestamp: nowStr()
+    };
+
+    STATE.logs.push(logEntry);
+    if (CONFIG.opMode === 'live') {
+      await logPrintToSheets(logEntry);
+    }
+
+    // Update item counters
+    const item = STATE.items.find(i => i.id === STATE.pendingPrintItem.id);
+    if (item) {
+      item.printed += batch.count;
+      item.remaining -= batch.count;
+      if (CONFIG.opMode === 'live') {
+        await updateItemInSheets(item.id, item);
+      }
+    }
+
+    saveDemoData();
+
+    // Update UI
+    toast(`✅ Printed ${batch.count} pages (pp${batch.from}-${batch.to})`, 'success');
+    
+    // Refresh relevant pages
+    if (STATE.role === 'admin') {
+      updateAdminStats();
+      renderAdminItemsTable();
+      renderDashboardItems();
+      renderDashboardLogs();
+    } else {
+      renderEncoderItemsGrid();
+      loadEncoderSummary();
+    }
+
+    // Close modal after short delay
+    setTimeout(() => {
+      closeModal('print-modal');
+      printWindow.print();
+      printWindow.onafterprint = () => printWindow.close();
+    }, 500);
+
+  } catch(e) {
+    console.error('Print error:', e);
+    toast('Print failed: ' + e.message, 'error');
+  } finally {
+    printBtn.disabled = false;
+    printBtn.innerHTML = '🖨 Print This Batch';
+  }
+}
+
+// ================================================================
+// ENCODER SUMMARY
+// ================================================================
+function loadEncoderSummary() {
+  const myLogs = STATE.logs.filter(l => l.encoder === STATE.encoderName);
+  const today = new Date().toISOString().slice(0,10);
+  const todayLogs = myLogs.filter(l => l.timestamp.startsWith(today));
+  
+  const totalPrinted = todayLogs.reduce((s, l) => s + l.pages, 0);
+  const totalSessions = todayLogs.length;
+  const myItems = STATE.items.filter(i => 
+    STATE.uploads.some(u => 
+      (u.encoder === STATE.encoderName || u.encoder === 'all') && 
+      (u.item === i.name || u.itemId === i.id)
+    )
+  );
+
+  document.getElementById('enc-stat-printed').textContent = totalPrinted.toLocaleString();
+  document.getElementById('enc-stat-remaining').textContent = 
+    myItems.reduce((s, i) => s + i.remaining, 0).toLocaleString();
+  document.getElementById('enc-stat-sessions').textContent = totalSessions;
+  document.getElementById('enc-stat-items').textContent = myItems.length;
+
+  renderMyPrintHistory(todayLogs);
+}
+
+function renderMyPrintHistory(logs) {
+  const cont = document.getElementById('my-print-history');
+  if (!logs.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📋</div><h3>No print history yet</h3></div>`;
+    return;
+  }
+
+  const rows = logs.slice(0, 10).map(l => `<tr>
+    <td>${formatTime(l.timestamp)}</td>
+    <td>${l.item}</td>
+    <td><span class="badge badge-info">pp${l.pagesFrom}–${l.pagesTo}</span></td>
+    <td class="text-green bold">${l.pages}</td>
+    <td><span class="badge badge-muted">Batch ${l.batch}</span></td>
+  </tr>`).join('');
+
+  cont.innerHTML = `<table><thead><tr>
+    <th>Time</th><th>Item</th><th>Range</th><th>Pages</th><th>Batch</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ================================================================
+// ENCODER IPRIPRINT INFO
+// ================================================================
+function loadEncoderIpriprint() {
+  const myUploads = STATE.uploads.filter(u => 
+    u.encoder === STATE.encoderName || u.encoder === 'all'
+  );
+
+  const cont = document.getElementById('ipriprint-info-container');
+  if (!myUploads.length) {
+    cont.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">🖨</div>
+        <h3>No IPRIPRINT files assigned yet</h3>
+        <p style="font-size:0.83rem;margin-top:0.5rem;">Ask your admin to upload your PDF file.</p>
+      </div>
+    `;
+    return;
+  }
+
+  cont.innerHTML = `
+    <div class="ipriprint-card">
+      <div class="ipriprint-header">
+        <div>
+          <h3 style="margin:0;font-size:1.1rem;">📄 Your IPRIPRINT Files</h3>
+          <span class="badge badge-success">${myUploads.length} file${myUploads.length > 1 ? 's' : ''}</span>
+        </div>
+        <div class="ipriprint-badge">Ready to Print</div>
+      </div>
+      
+      <div class="ipriprint-rows">
+        ${myUploads.map(u => `
+          <div class="ipriprint-row">
+            <div class="key">${u.filename}</div>
+            <div class="val">${u.pages.toLocaleString()} pages</div>
+          </div>
+          <div class="ipriprint-row">
+            <div class="key">${u.item}</div>
+            <div class="val text-blue">#${u.itemId}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ================================================================
+// UTILITY FUNCTIONS
+// ================================================================
+function nowStr() {
+  return new Date().toISOString().slice(0,19).replace('T', ' ');
+}
+
+function formatTime(timestamp) {
+  const date = new Date(timestamp);
+  return date.toLocaleString('en-US', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+}
+
+// ================================================================
+// MOBILE RESPONSIVENESS
+// ================================================================
+function initMobile() {
+  const isMobile = window.innerWidth <= 768;
+  const mobBtn = document.getElementById('mob-menu-btn');
+  
+  if (isMobile) {
+    mobBtn.style.display = 'flex';
+    document.querySelector('.sidebar').classList.remove('open');
+  } else {
+    mobBtn.style.display = 'none';
+  }
+}
+
+// ================================================================
+// APPS SCRIPT CODE GENERATOR
+// ================================================================
+function getAppsScriptCode() {
+  return `/**
+ * JNT Waybill Printing System - Google Apps Script Backend
+ * Deploy as Web App: Execute as: Me | Access: Anyone
+ */
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action;
+    
+    switch(action) {
+      case 'ping': return ContentService.createTextOutput(JSON.stringify({success: true}));
+      case 'getItems': return ContentService.createTextOutput(JSON.stringify({success: true, data: getItems()}));
+      case 'addItem': addItem(data.item); return ContentService.createTextOutput(JSON.stringify({success: true}));
+      case 'updateItem': updateItem(data.id, data.data); return ContentService.createTextOutput(JSON.stringify({success: true}));
+      case 'deleteItem': deleteItem(data.id); return ContentService.createTextOutput(JSON.stringify({success: true}));
+      case 'addLog': addLog(data.log); return ContentService.createTextOutput(JSON.stringify({success: true}));
+      case 'getLogs': return ContentService.createTextOutput(JSON.stringify({success: true, data: getLogs()}));
+      case 'addUpload': addUpload(data.upload); return ContentService.createTextOutput(JSON.stringify({success: true}));
+      default: throw new Error('Unknown action: ' + action);
+    }
+  } catch(error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false, 
+      error: error.toString()
+    }));
+  }
+}
+
+const SHEET_ID = '${CONFIG.sheetId || 'YOUR_SHEET_ID_HERE'}';
+const SHEET_NAMES = {
+  items: 'Items',
+  logs: 'Print Logs', 
+  uploads: 'Uploads'
+};
+
+function getSpreadsheet() {
+  return SpreadsheetApp.openById(SHEET_ID);
+}
+
+function getSheet(name) {
+  let ss = getSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    // Initialize headers
+    const headers = name === 'Items' ? ['id', 'name', 'total', 'printed', 'remaining'] :
+                   name === 'Print Logs' ? ['id', 'encoder', 'item', 'itemId', 'pages', 'pagesFrom', 'pagesTo', 'batch', 'timestamp'] :
+                   ['id', 'filename', 'encoder', 'item', 'itemId', 'pages', 'uploadDate', 'uploadBy'];
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  return sheet;
+}
+
+function getItems() {
+  const sheet = getSheet(SHEET_NAMES.items);
+  const data = sheet.getDataRange().getValues();
+  return data.slice(1).map(row => ({
+    id: row[0],
+    name: row[1],
+    total: parseInt(row[2]) || 0,
+    printed: parseInt(row[3]) || 0,
+    remaining: parseInt(row[4]) || 0
+  }));
+}
+
+function addItem(item) {
+  const sheet = getSheet(SHEET_NAMES.items);
+  sheet.appendRow([item.id, item.name, item.total, item.printed || 0, item.remaining || item.total]);
+}
+
+function updateItem(id, data) {
+  const sheet = getSheet(SHEET_NAMES.items);
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === id) {
+      sheet.getRange(i+1, 1, 1, 5).setValues([[id, data.name, data.total, data.printed || 0, data.remaining || 0]]);
+      return;
+    }
+  }
+}
+
+function deleteItem(id) {
+  const sheet = getSheet(SHEET_NAMES.items);
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === id) {
+      sheet.deleteRow(i + 1);
+      return;
+    }
+  }
+}
+
+function addLog(log) {
+  const sheet = getSheet(SHEET_NAMES.logs);
+  sheet.appendRow([
+    log.id, log.encoder, log.item, log.itemId, log.pages, 
+    log.pagesFrom, log.pagesTo, log.batch, log.timestamp
+  ]);
+  
+  // Update item printed count
+  updateItemPrinted(log.itemId, log.pages);
+}
+
+function updateItemPrinted(itemId, pagesPrinted) {
+  const sheet = getSheet(SHEET_NAMES.items);
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+  
+  for (let i = 1; i < values.length; i++) {
+    if (values[i][0] === itemId) {
+      const printed = (parseInt(values[i][3]) || 0) + pagesPrinted;
+      const remaining = parseInt(values[i][2]) - printed;
+      sheet.getRange(i+1, 4).setValue(printed);
+      sheet.getRange(i+1, 5).setValue(remaining);
+      return;
+    }
+  }
+}
+
+function getLogs() {
+  const sheet = getSheet(SHEET_NAMES.logs);
+  const data = sheet.getDataRange().getValues();
+  return data.slice(1).map(row => ({
+    id: row[0],
+    encoder: row[1],
+    item: row[2],
+    itemId: row[3],
+    pages: parseInt(row[4]),
+    pagesFrom: parseInt(row[5]),
+    pagesTo: parseInt(row[6]),
+    batch: parseInt(row[7]),
+    timestamp: row[8]
+  }));
+}
+
+function addUpload(upload) {
+  const sheet = getSheet(SHEET_NAMES.uploads);
+  sheet.appendRow([
+    upload.id, upload.filename, upload.encoder, upload.item, 
+    upload.itemId, upload.pages, upload.uploadDate, upload.uploadBy
+  ]);
+}
+`;
+}
+
+// ================================================================
+// INITIALIZATION
+// ================================================================
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize PDF.js worker
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  
+  // Start splash screen
+  initSplash();
+  
+  // Mobile detection
+  window.addEventListener('resize', initMobile);
+  initMobile();
+});
+
+// Auto-hide sidebar on mobile after navigation
+document.addEventListener('click', function(e) {
+  if (window.innerWidth <= 768 && e.target.closest('.nav-item')) {
+    document.getElementById('sidebar').classList.remove('open');
+  }
+});
+
+// Prevent context menu on long press (mobile)
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  
+  if (e.key === 'Escape') {
+    closeModal('print-modal');
+    closeModal('item-modal');
+    closeModal('delete-modal');
+  }
+  
+  if (STATE.role === 'encoder' && e.key === 'p' && e.ctrlKey) {
+    e.preventDefault();
+    const firstItem = document.querySelector('.item-card .btn-print:not(:disabled)');
+    if (firstItem) firstItem.click();
+  }
+});
+
+// Service Worker for offline capability (PWA)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('data:application/javascript;base64,' + 
+      btoa(`// Simple offline cache
+      self.addEventListener('fetch', e => {
+        if (e.request.url.includes('cdnjs.cloudflare.com')) {
+          e.respondWith(
+            caches.match(e.request).then(r => r || fetch(e.request))
+          );
+        }
+      });
+      self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
+      self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+      `)
+    ).catch(() => {}); // Ignore SW errors
+  });
+}
+
+console.log('🎯 JNT Waybill Printing System v' + CONFIG.version + ' loaded successfully!');
+console.log('💡 Demo mode:', CONFIG.opMode === 'demo');
+console.log('🔌 Live mode URL:', CONFIG.appsScriptUrl || 'Not configured');
+</script>
+
+</body>
+</html>
