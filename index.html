@@ -2352,23 +2352,25 @@ async function openPrintModal(itemId) {
   openModal('print-modal');
   updateBatchList(0); // Initialize batch list
 }
+let printFrame = null;
+
 async function startPrintBatch() {
   const batchSize = parseInt(document.getElementById('batch-size-input').value);
   if (!batchSize || batchSize > STATE.pendingPrintItem.remaining || !STATE.currentPdfDoc) {
     toast('Invalid batch size or no PDF loaded', 'error');
     return;
   }
-    
-  // Initialize print frame
-  initPrintFrame();
   
-  // Create batches (10 pages each for optimal printing)
+  toast('Preparing print batches...', 'info');
+  
+  // Create batches
   STATE.currentBatchIndex = 0;
   STATE.printBatches = [];
   const startPage = STATE.pendingPrintItem.printed + 1;
   
+  // Create 10-page batches
   for (let i = 0; i < Math.ceil(batchSize / 10); i++) {
-    const from = startPage + (i * 10);
+    const from = startPage + (i * 10) - 1; // PDF.js is 1-indexed
     const to = Math.min(startPage + (i + 1) * 10 - 1, startPage + batchSize - 1);
     STATE.printBatches.push({
       pagesFrom: from,
@@ -2379,43 +2381,68 @@ async function startPrintBatch() {
   }
   
   document.getElementById('start-print-btn').disabled = true;
-  document.getElementById('start-print-btn').innerHTML = '<span class="spin"></span> Preparing...';
+  document.getElementById('start-print-btn').innerHTML = '<span class="spin"></span> Rendering...';
   
   try {
-    // Render all batch pages first
     await renderAllBatchPages();
-    
-    // Start printing process
-    processNextPrintBatch();
+    processFirstPrintBatch();
   } catch(e) {
-    toast('Print preparation failed: ' + e.message, 'error');
-    document.getElementById('start-print-btn').disabled = false;
-    document.getElementById('start-print-btn').innerHTML = '🖨️ START PRINTING';
+    toast('Print failed: ' + e.message, 'error');
+    resetPrintButton();
   }
+}
+function resetPrintButton() {
+  const btn = document.getElementById('start-print-btn');
+  btn.disabled = false;
+  btn.innerHTML = '🖨️ START PRINTING';
+}
+function processFirstPrintBatch() {
+  // Log FIRST batch immediately
+  const batch = STATE.printBatches[0];
+  logPrintBatch(batch).then(() => {
+    renderBatchToPrintFrame(batch);
+    
+    // Open print dialog after 500ms
+    setTimeout(() => {
+      printFrame.contentWindow.focus();
+      printFrame.contentWindow.print();
+    }, 500);
+    
+    // Prepare next batch
+    if (STATE.printBatches.length > 1) {
+      setTimeout(() => processNextPrintBatch(), 3000);
+    } else {
+      setTimeout(finalizePrintSession, 4000);
+    }
+  });
 }
 
 async function renderAllBatchPages() {
-  const totalBatches = STATE.printBatches.length;
-  
-  for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+  for (let batchIdx = 0; batchIdx < STATE.printBatches.length; batchIdx++) {
     const batch = STATE.printBatches[batchIdx];
     const batchPages = [];
     
     for (let pageNum = batch.pagesFrom; pageNum <= batch.pagesTo; pageNum++) {
-      if (pageNum > STATE.currentPdfDoc.numPages) break;
+      if (pageNum > STATE.currentPdfDoc.numPages) {
+        console.warn(`Page ${pageNum} exceeds PDF (${STATE.currentPdfDoc.numPages} pages)`);
+        break;
+      }
       
       const page = await STATE.currentPdfDoc.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1.5 });
+      const scale = 1.5;
+      const viewport = page.getViewport({ scale });
+      
       const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
       canvas.height = viewport.height;
       canvas.width = viewport.width;
+      const context = canvas.getContext('2d');
       
-      await page.render({
+      const renderContext = {
         canvasContext: context,
         viewport: viewport
-      }).promise;
+      };
       
+      await page.render(renderContext).promise;
       batchPages.push(canvas);
     }
     
@@ -2426,14 +2453,17 @@ async function renderAllBatchPages() {
 
 function initPrintFrame() {
   printFrame = document.getElementById('print-frame');
-  printFrame.style.display = 'block';
-  printFrame.style.position = 'fixed';
-  printFrame.style.top = '0';
-  printFrame.style.left = '0';
-  printFrame.style.width = '100vw';
-  printFrame.style.height = '100vh';
-  printFrame.style.zIndex = '10000';
-  printFrame.style.background = 'white';
+  printFrame.style.cssText = `
+    display: block !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 99999 !important;
+    background: white !important;
+    border: none !important;
+  `;
   
   const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
   printDoc.open();
@@ -2441,30 +2471,68 @@ function initPrintFrame() {
     <!DOCTYPE html>
     <html>
     <head>
+      <title>Print Waybill</title>
       <style>
-        body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: white; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+          font-family: Arial, sans-serif; 
+          background: white; 
+          margin: 0; 
+          padding: 0;
+        }
+        .print-container { max-width: 210mm; margin: 0 auto; }
         .print-page { 
           width: 210mm; 
           min-height: 297mm; 
-          margin: 10px auto; 
-          padding: 15px; 
-          box-shadow: 0 0 0.5mm rgba(0,0,0,0.1); 
-          page-break-after: always;
+          margin-bottom: 20px; 
+          padding: 15mm;
           background: white;
+          box-shadow: 0 0 2px rgba(0,0,0,0.1);
+          page-break-after: always;
         }
-        .print-page:last-child { page-break-after: auto; }
-        canvas { max-width: 100%; height: auto; display: block; margin: 0 auto; image-rendering: -webkit-optimize-contrast; }
-        @media print { 
-          body { padding: 0; margin: 0; }
-          .print-page { box-shadow: none; margin: 0; padding: 10px; }
+        .print-page:last-child { page-break-after: auto; margin-bottom: 0; }
+        canvas { 
+          max-width: 100%; 
+          height: auto; 
+          display: block; 
+          margin: 0 auto;
+          image-rendering: crisp-edges;
+          image-rendering: pixelated;
+        }
+        .batch-info {
+          text-align: center;
+          margin-bottom: 10px;
+          font-size: 12px;
+          color: #666;
+        }
+        @media print {
+          body { -webkit-print-color-adjust: exact; }
+          .print-page { box-shadow: none; margin: 0; padding: 10mm; }
         }
         @media screen {
-          body::after { content: 'PRINT DIALOG WILL OPEN SHORTLY'; position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); background: rgba(0,0,0,0.9); color: white; padding: 2rem; border-radius: 10px; font-size: 1.2rem; z-index: 1000; }
+          body::before {
+            content: '🖨️ PRINT DIALOG OPENS IN 1s';
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(230,0,18,0.95);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 10000;
+            animation: pulse 1s infinite;
+          }
         }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.7} }
       </style>
     </head>
     <body>
-      <div id="print-container"></div>
+      <div class="print-container">
+        <div id="print-pages"></div>
+      </div>
     </body>
     </html>
   `);
@@ -2472,15 +2540,28 @@ function initPrintFrame() {
 }
 
 async function processNextPrintBatch() {
-  if (STATE.currentBatchIndex >= STATE.printBatches.length) {
-    await finalizePrintSession();
+  if (STATE.currentBatchIndex >= STATE.printBatches.length - 1) {
+    finalizePrintSession();
     return;
   }
   
+  STATE.currentBatchIndex++;
   const batch = STATE.printBatches[STATE.currentBatchIndex];
-  const batchNum = STATE.currentBatchIndex + 1;
   
-  // Log the print action FIRST
+  await logPrintBatch(batch);
+  renderBatchToPrintFrame(batch);
+  updateBatchList(STATE.currentBatchIndex + 1);
+  
+  setTimeout(() => {
+    printFrame.contentWindow.focus();
+    printFrame.contentWindow.print();
+  }, 500);
+  
+  if (STATE.currentBatchIndex < STATE.printBatches.length - 1) {
+    setTimeout(processNextPrintBatch, 3000);
+  }
+}
+async function logPrintBatch(batch) {
   const log = {
     id: 'log_' + Date.now(),
     encoder: STATE.currentUser.firstName + ' ' + STATE.currentUser.lastName,
@@ -2490,84 +2571,60 @@ async function processNextPrintBatch() {
     pagesFrom: batch.pagesFrom,
     pagesTo: batch.pagesTo,
     pages: batch.pages,
-    batch: batchNum,
+    batch: STATE.currentBatchIndex + 1,
     timestamp: nowStr()
   };
-  
-  // Save log immediately
-  const logResult = await api('logPrint', { log });
-  if (!logResult.success) {
-    toast('Failed to log print: ' + logResult.error, 'error');
-    return;
-  }
-  
-  STATE.logs.push(log);
-  
-  // Update item stats immediately
-  const item = STATE.items.find(i => i.id === STATE.pendingPrintItem.id);
-  if (item) {
-    item.printed += batch.pages;
-    item.remaining -= batch.pages;
-  }
-  
-  // Render batch to print frame
-  await renderBatchToPrintFrame(batch);
-  
-  // Update UI
-  updateBatchList(batchNum);
-  
-  // Trigger print dialog
-  setTimeout(() => {
-    printFrame.contentWindow.focus();
-    printFrame.contentWindow.print();
-  }, 500);
-  
-  STATE.currentBatchIndex++;
-  
-  // Auto-advance to next batch after print dialog
-  setTimeout(() => {
-    if (STATE.currentBatchIndex < STATE.printBatches.length) {
-      processNextPrintBatch();
+    const result = await api('logPrint', { log });
+  if (result.success) {
+    STATE.logs.push(log);
+    
+    // Update local item
+    const item = STATE.items.find(i => i.id === STATE.pendingPrintItem.id);
+    if (item) {
+      item.printed += batch.pages;
+      item.remaining -= batch.pages;
     }
-  }, 3000);
+  }
+  
+  return result;
 }
 
-async function renderBatchToPrintFrame(batch) {
+function renderBatchToPrintFrame(batch) {
   const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
-  const container = printDoc.getElementById('print-container');
+  const pagesContainer = printDoc.getElementById('print-pages');
+  pagesContainer.innerHTML = '';
   
-  // Clear previous content
-  container.innerHTML = '';
-  
-  // Add batch pages
   batch.pdfPages.forEach((canvas, idx) => {
     const pageDiv = printDoc.createElement('div');
     pageDiv.className = 'print-page';
+    
+    const infoDiv = printDoc.createElement('div');
+    infoDiv.className = 'batch-info';
+    infoDiv.textContent = `Batch ${STATE.currentBatchIndex + 1} • pp${batch.pagesFrom}-${batch.pagesTo}`;
+    pageDiv.appendChild(infoDiv);
+    
     pageDiv.appendChild(canvas.cloneNode(true));
-    container.appendChild(pageDiv);
+    pagesContainer.appendChild(pageDiv);
   });
 }
 
-function updateBatchList(currentBatch) {
-  const batchList = document.getElementById('batch-list');
+function updateBatchList(current) {
+  const batchList = document.getElementById('batch-list') || document.querySelector('#print-modal .batch-list');
   if (!batchList) return;
   
-  const totalBatches = STATE.printBatches.length;
   let html = '';
-  
-  for (let i = 0; i < totalBatches; i++) {
-    const batch = STATE.printBatches[i];
-    const status = i < currentBatch ? 'done' : i === currentBatch ? 'active' : '';
+  STATE.printBatches.forEach((batch, i) => {
+    const status = i < current - 1 ? 'done' : i === current - 1 ? 'active' : '';
     html += `
       <div class="batch-item ${status}">
         <div class="batch-num">${i+1}</div>
-        <span>pp${batch.pagesFrom}–${batch.pagesTo} (${batch.pages} pages)</span>
+        <span>pp${batch.pagesFrom}–${batch.pagesTo} (${batch.pages}pg)</span>
       </div>
     `;
-  }
-  
+  });
   batchList.innerHTML = html;
 }
+
 
 
 function createBatchList() {
@@ -2585,37 +2642,34 @@ function createBatchList() {
 }
 
 async function finalizePrintSession() {
-  const totalPrinted = STATE.printBatches.reduce((s,b)=>s+b.pages,0);
+  // Final item sync
+  const item = STATE.pendingPrintItem;
+  await api('updateItem', { 
+    id: item.id, 
+    data: { 
+      printed: item.printed, 
+      remaining: item.remaining 
+    } 
+  });
   
-  // Final backend update
-  const updateData = {
-    id: STATE.pendingPrintItem.id,
-    printed: STATE.pendingPrintItem.printed,
-    remaining: STATE.pendingPrintItem.remaining
-  };
-  await api('updateItem', { id: updateData.id, data: updateData });
-  
-  // Hide print frame
+  // Cleanup
   if (printFrame) {
     printFrame.style.display = 'none';
-    printFrame.style.width = '1px';
-    printFrame.style.height = '1px';
   }
   
-  toast(`✅ Printed ${totalPrinted.toLocaleString()} pages successfully!`, 'success');
+  toast(`✅ Session complete! ${STATE.printBatches.reduce((s,b)=>s+b.pages,0)} pages printed`, 'success');
   
-  // Refresh UIs
-  if (typeof updateAdminStats === 'function') updateAdminStats();
-  updateEncoderQuickStats();
-  renderEncoderItemsGrid();
-  if (typeof loadEncoderSummary === 'function') loadEncoderSummary();
+  // Refresh everything
+  closeModal('print-modal');
+  if (typeof loadEncoderItems === 'function') loadEncoderItems();
+  if (typeof renderEncoderItemsGrid === 'function') renderEncoderItemsGrid();
   
   // Reset state
-  closeModal('print-modal');
   STATE.pendingPrintItem = null;
   STATE.printBatches = [];
   STATE.currentBatchIndex = 0;
   STATE.currentPdfDoc = null;
+  resetPrintButton();
 }
 
 // ================================================================
@@ -2792,6 +2846,7 @@ window.addEventListener('afterprint', () => {
   document.querySelectorAll('.no-print').forEach(el => el.style.display = '');
 });
 
+  
 // ================================================================
 // PDF.JS INITIALIZATION
 // ================================================================
