@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,16 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JNT Waybill Printing System</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <style>
-#print-frame {
-  display: none !important;
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 1px !important;
-  height: 1px !important;
-  z-index: 99999 !important;
-}
 /* ============================================================
    RESET & BASE
    ============================================================ */
@@ -42,6 +33,16 @@
   --radius-sm:  8px;
 }
 
+html.light-mode {
+  --dark:       #f5f6fa;
+  --darker:     #ffffff;
+  --card:       #ffffff;
+  --card2:      #f8f9fa;
+  --border:     #e1e8ed;
+  --text:       #2c3e50;
+  --text-muted: #6c757d;
+}
+
 html { font-size: 15px; }
 
 body {
@@ -50,6 +51,7 @@ body {
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
+  transition: background 0.3s, color 0.3s;
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -123,6 +125,7 @@ h1,h2,h3,h4 { font-weight:700; line-height:1.2; }
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); z-index:7000; display:flex; align-items:center; justify-content:center; padding:1rem; }
 .modal { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:2rem; width:100%; max-width:500px; box-shadow:var(--shadow); animation:modalIn 0.3s ease; max-height:90vh; overflow-y:auto; }
 .modal-lg { max-width:820px; }
+.modal-xl { max-width:1000px; }
 @keyframes modalIn { from{transform:scale(0.9) translateY(20px);opacity:0;} to{transform:scale(1) translateY(0);opacity:1;} }
 .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:1px solid var(--border); }
 .modal-close { width:32px; height:32px; background:var(--border); border:none; border-radius:50%; color:var(--text); font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s; }
@@ -138,6 +141,14 @@ h1,h2,h3,h4 { font-weight:700; line-height:1.2; }
 .role-badge { padding:0.3rem 0.9rem; border-radius:20px; font-size:0.78rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
 .role-badge.admin   { background:rgba(230,0,18,0.2); color:var(--red-light); border:1px solid rgba(230,0,18,0.4); }
 .role-badge.encoder { background:rgba(79,195,247,0.15); color:var(--blue); border:1px solid rgba(79,195,247,0.35); }
+
+/* Dark Mode Toggle */
+.theme-toggle {
+  width:44px; height:44px; background:var(--border); border:none; border-radius:50%;
+  color:var(--text); font-size:1.2rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  transition:all 0.2s;
+}
+.theme-toggle:hover { background:var(--red); transform:rotate(180deg); }
 
 /* ============================================================
    SIDEBAR + LAYOUT
@@ -263,7 +274,7 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
   border:1px solid var(--border);
   border-radius:var(--radius);
   padding:2.5rem;
-  width:100%; max-width:460px;
+  width:100%; max-width:420px;
   box-shadow:var(--shadow);
   margin:auto;
 }
@@ -275,36 +286,6 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
 .auth-tabs { display:flex; gap:0.5rem; background:var(--darker); border-radius:var(--radius-sm); padding:0.3rem; margin-bottom:1.5rem; }
 .auth-tab { flex:1; padding:0.55rem; border-radius:6px; border:none; background:transparent; color:var(--text-muted); font-size:0.85rem; font-weight:600; cursor:pointer; transition:all 0.2s; }
 .auth-tab.active { background:var(--card2); color:var(--text); box-shadow:0 2px 8px rgba(0,0,0,0.3); }
-
-.auth-mode-tabs { display:flex; gap:0.5rem; background:var(--card2); border-radius:var(--radius-sm); padding:0.3rem; margin-bottom:1.5rem; }
-.auth-mode-tab { flex:1; padding:0.5rem; border-radius:6px; border:none; background:transparent; color:var(--text-muted); font-size:0.82rem; font-weight:600; cursor:pointer; transition:all 0.2s; }
-.auth-mode-tab.active { background:var(--red); color:#fff; }
-
-/* ============================================================
-   SETUP / FIRST RUN
-   ============================================================ */
-#first-run-page {
-  position:fixed; inset:0;
-  background:var(--darker);
-  display:flex; align-items:center; justify-content:center;
-  z-index:6000; padding:1rem;
-  overflow-y:auto;
-}
-.first-run-box {
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:2.5rem;
-  width:100%; max-width:520px;
-  box-shadow:var(--shadow);
-  margin:auto;
-}
-.first-run-step { display:none; }
-.first-run-step.active { display:block; }
-.step-pills { display:flex; gap:0.4rem; margin-bottom:1.5rem; }
-.step-pill { flex:1; height:5px; background:var(--border); border-radius:3px; transition:background 0.3s; }
-.step-pill.done   { background:var(--green); }
-.step-pill.active { background:var(--red); }
 
 /* ============================================================
    ITEMS GRID
@@ -318,66 +299,14 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
 .item-meta-row { display:flex; justify-content:space-between; align-items:center; font-size:0.83rem; }
 .item-meta-row .label { color:var(--text-muted); }
 .item-meta-row .value { font-weight:700; }
-.tally-bar-wrap { display:flex; flex-direction:column; gap:0.4rem; }
-.tally-nums { display:flex; justify-content:space-between; font-size:0.78rem; color:var(--text-muted); }
-.tally-nums .printed   { color:var(--green); font-weight:700; }
-.tally-nums .remaining { color:var(--orange); font-weight:700; }
 
 /* ============================================================
-   PRINT MODAL
+   PDF SPLITTER
    ============================================================ */
-.print-info-grid { display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; margin-bottom:1.2rem; }
-.print-info-cell { background:var(--darker); border-radius:var(--radius-sm); padding:0.8rem 1rem; border:1px solid var(--border); }
-.print-info-cell .label { font-size:0.73rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:0.3rem; }
-.print-info-cell .value { font-size:1.2rem; font-weight:800; }
-.batch-list { display:flex; flex-direction:column; gap:0.5rem; }
-.batch-item { display:flex; align-items:center; gap:0.75rem; background:var(--darker); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.65rem 1rem; font-size:0.88rem; cursor:pointer; transition:border-color 0.2s; }
-.batch-item:hover { border-color:var(--red); }
-.batch-num { width:28px; height:28px; background:var(--red); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:700; color:#fff; flex-shrink:0; }
-.batch-item.done .batch-num { background:var(--green-dark); }
-.batch-item.active { border-color:var(--yellow); background:rgba(255,215,0,0.05); }
-.batch-item.active .batch-num { background:var(--yellow); color:#000; }
-
-#pdf-preview-canvas { max-width:100%; border-radius:var(--radius-sm); border:1px solid var(--border); margin-top:0.5rem; }
-
-/* ============================================================
-   ENCODER BANNER
-   ============================================================ */
-.encoder-banner { background:linear-gradient(135deg,var(--card2),var(--card)); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem 1.5rem; display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; }
-.encoder-avatar { width:44px; height:44px; background:linear-gradient(135deg,var(--blue),#0288d1); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.2rem; font-weight:800; color:#fff; flex-shrink:0; }
-.encoder-info { flex:1; margin-left:0.9rem; }
-.encoder-info .name { font-weight:700; font-size:1rem; }
-.encoder-info .sub  { font-size:0.8rem; color:var(--text-muted); }
-
-/* ============================================================
-   IPRIPRINT
-   ============================================================ */
-.ipriprint-card { background:var(--darker); border:1px solid var(--border); border-radius:var(--radius); padding:1.2rem; }
-.ipriprint-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem; }
-.ipriprint-badge { background:linear-gradient(135deg,var(--red),var(--red-dark)); color:#fff; font-size:0.75rem; font-weight:800; padding:0.3rem 0.8rem; border-radius:20px; letter-spacing:1px; text-transform:uppercase; }
-.ipriprint-rows { display:flex; flex-direction:column; gap:0.5rem; }
-.ipriprint-row { display:flex; justify-content:space-between; align-items:center; font-size:0.85rem; padding:0.5rem 0.8rem; background:var(--card); border-radius:var(--radius-sm); border:1px solid var(--border); }
-.ipriprint-row .key { color:var(--text-muted); }
-.ipriprint-row .val { font-weight:700; }
-
-/* ============================================================
-   SEARCH / FILTER
-   ============================================================ */
-.filter-bar { display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:1.2rem; align-items:center; }
-.search-input-wrap { position:relative; flex:1; min-width:180px; }
-.search-input-wrap .search-icon { position:absolute; left:0.75rem; top:50%; transform:translateY(-50%); color:var(--text-muted); pointer-events:none; }
-.search-input { background:var(--darker); border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:0.6rem 0.9rem 0.6rem 2.4rem; color:var(--text); font-size:0.88rem; width:100%; transition:border-color 0.2s; }
-.search-input:focus { outline:none; border-color:var(--red); }
-
-/* ============================================================
-   UPLOAD
-   ============================================================ */
-.upload-list { display:flex; flex-direction:column; gap:0.6rem; margin-top:1rem; }
-.upload-file-item { display:flex; align-items:center; justify-content:space-between; background:var(--darker); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.7rem 1rem; font-size:0.85rem; }
-.upload-file-icon { font-size:1.4rem; margin-right:0.75rem; }
-.upload-file-info { flex:1; }
-.upload-file-name { font-weight:600; }
-.upload-file-size { font-size:0.75rem; color:var(--text-muted); margin-top:0.15rem; }
+.splitter-result { display:flex; flex-direction:column; gap:0.75rem; margin-top:1rem; }
+.split-pdf-item { display:flex; align-items:center; justify-content:space-between; background:var(--darker); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.8rem 1rem; }
+.split-pdf-name { font-weight:600; }
+.split-pdf-info { font-size:0.75rem; color:var(--text-muted); }
 
 /* ============================================================
    PAGE HEADER
@@ -404,13 +333,6 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
 .alert-danger  { background:rgba(230,0,18,0.1); border:1px solid rgba(230,0,18,0.3); color:var(--red-light); }
 
 /* ============================================================
-   APPS SCRIPT HELPER
-   ============================================================ */
-.config-steps { counter-reset:step; display:flex; flex-direction:column; gap:0.75rem; }
-.config-step { counter-increment:step; display:flex; gap:0.75rem; align-items:flex-start; font-size:0.88rem; }
-.config-step::before { content:counter(step); width:24px; height:24px; flex-shrink:0; background:var(--red); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.75rem; font-weight:800; margin-top:0.05rem; }
-
-/* ============================================================
    MISC
    ============================================================ */
 .divider { height:1px; background:var(--border); margin:1rem 0; }
@@ -424,11 +346,6 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
 @keyframes spin { to{transform:rotate(360deg);} }
 
 /* ============================================================
-   ENCODER STATUS CARD
-   ============================================================ */
-.encoder-status-card { background:var(--card2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.8rem 1rem; display:flex; align-items:center; justify-content:space-between; }
-
-/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media(max-width:768px){
@@ -436,20 +353,14 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
   .sidebar.open { display:flex; position:fixed; z-index:200; height:100vh; top:60px; }
   .main-content { padding:1rem; }
   .items-grid { grid-template-columns:1fr; }
-  .print-info-grid { grid-template-columns:1fr; }
   .stats-grid { grid-template-columns:1fr 1fr; }
 }
 @media(max-width:480px){
   .stats-grid { grid-template-columns:1fr; }
   h1 { font-size:1.5rem; }
 }
-
-#print-frame { display:none; position:absolute; width:1px; height:1px; }
-
-/* pending approval screen */
-.pending-screen { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4rem 1rem; text-align:center; }
-.pending-icon { font-size:5rem; margin-bottom:1.5rem; animation:pulse-logo 2s ease-in-out infinite; }
 </style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
 
@@ -464,107 +375,7 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
 </div>
 
 <!-- ============================================================
-     FIRST RUN / GOOGLE SHEETS SETUP
-     ============================================================ -->
-<div id="first-run-page" class="hidden">
-  <div class="first-run-box">
-    <div style="text-align:center;margin-bottom:1.5rem;">
-      <div style="font-size:2.5rem;margin-bottom:0.5rem;">🚀</div>
-      <h2>Welcome to JNT Waybill System</h2>
-      <p class="text-muted" style="margin-top:0.3rem;">First-time setup — connect Google Sheets backend</p>
-    </div>
-
-    <div class="step-pills" id="fr-pills">
-      <div class="step-pill active"></div>
-      <div class="step-pill"></div>
-      <div class="step-pill"></div>
-    </div>
-
-    <!-- Step 1: Google Sheets URL -->
-    <div class="first-run-step active" id="fr-step-1">
-      <h3 style="margin-bottom:0.5rem;">🌐 Google Sheets Connection</h3>
-      <p class="text-muted" style="font-size:0.83rem;margin-bottom:1.2rem;">
-        This system uses Google Sheets as the live database. Paste your Apps Script Web App URL to connect.
-      </p>
-      <div class="config-steps" style="margin-bottom:1.2rem;">
-        <div class="config-step">Open Google Sheets → Extensions → Apps Script</div>
-        <div class="config-step">Paste the Apps Script code (see Settings after setup)</div>
-        <div class="config-step">Deploy → New Deployment → Web App → Execute as: Me → Access: Anyone</div>
-        <div class="config-step">Copy the deployment URL and paste below</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Apps Script Web App URL <span style="color:var(--red)">*</span></label>
-        <input type="url" class="form-control" id="fr-script-url" placeholder="https://script.google.com/macros/s/.../exec">
-        <div class="form-hint">Must end with /exec</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Google Sheet ID <span style="color:var(--red)">*</span></label>
-        <input type="text" class="form-control" id="fr-sheet-id" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
-        <div class="form-hint">Found in the sheet URL: /spreadsheets/d/<strong>SHEET_ID</strong>/edit</div>
-      </div>
-      <div style="margin-top:1.5rem;display:flex;justify-content:flex-end;gap:0.75rem;">
-        <button class="btn btn-ghost" onclick="frTestConnection()">🔌 Test Connection</button>
-        <button class="btn btn-primary" onclick="frNext(1)">Continue →</button>
-      </div>
-    </div>
-
-    <!-- Step 2: Admin Account Registration -->
-    <div class="first-run-step" id="fr-step-2">
-      <h3 style="margin-bottom:0.5rem;">🔐 Create Admin Account</h3>
-      <p class="text-muted" style="font-size:0.83rem;margin-bottom:1.2rem;">
-        This is the master admin account. Keep the password safe.
-      </p>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">First Name <span style="color:var(--red)">*</span></label>
-          <input type="text" class="form-control" id="fr-admin-fname" placeholder="Juan">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Last Name <span style="color:var(--red)">*</span></label>
-          <input type="text" class="form-control" id="fr-admin-lname" placeholder="dela Cruz">
-        </div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Username <span style="color:var(--red)">*</span></label>
-        <input type="text" class="form-control" id="fr-admin-user" placeholder="admin" autocomplete="off">
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label">Password <span style="color:var(--red)">*</span></label>
-          <input type="password" class="form-control" id="fr-admin-pass" placeholder="Min 8 characters">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Confirm Password <span style="color:var(--red)">*</span></label>
-          <input type="password" class="form-control" id="fr-admin-pass2" placeholder="Repeat password">
-        </div>
-      </div>
-      <div style="margin-top:1.5rem;display:flex;justify-content:space-between;">
-        <button class="btn btn-ghost" onclick="frBack(1)">← Back</button>
-        <button class="btn btn-primary" onclick="frNext(2)">Continue →</button>
-      </div>
-    </div>
-
-    <!-- Step 3: Confirm & Finish -->
-    <div class="first-run-step" id="fr-step-3">
-      <h3 style="margin-bottom:0.5rem;">✅ Confirm Setup</h3>
-      <p class="text-muted" style="font-size:0.83rem;margin-bottom:1.2rem;">
-        Review your configuration before finishing.
-      </p>
-      <div id="fr-confirm-summary" style="display:flex;flex-direction:column;gap:0.6rem;margin-bottom:1.5rem;"></div>
-      <div class="alert alert-warning">
-        <span class="alert-icon">⚠️</span>
-        <div style="font-size:0.85rem;">Make sure your Apps Script is deployed and accessible before finishing. The admin account will be saved to your Google Sheet.</div>
-      </div>
-      <div style="margin-top:1.5rem;display:flex;justify-content:space-between;">
-        <button class="btn btn-ghost" onclick="frBack(2)">← Back</button>
-        <button class="btn btn-success btn-lg" id="fr-finish-btn" onclick="finishFirstRun()">🚀 Finish Setup</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ============================================================
-     AUTH PAGE (Login + Register)
+     AUTH PAGE (Login Only)
      ============================================================ -->
 <div id="auth-page" class="hidden">
   <div class="auth-box">
@@ -580,122 +391,40 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
       <button class="auth-tab" id="tab-admin" onclick="switchAuthRole('admin')">🔐 Admin</button>
     </div>
 
-    <!-- Mode tabs (Login / Register) -->
-    <div class="auth-mode-tabs" id="auth-mode-tabs">
-      <button class="auth-mode-tab active" id="mode-login" onclick="switchAuthMode('login')">Login</button>
-      <button class="auth-mode-tab" id="mode-register" onclick="switchAuthMode('register')">Register</button>
-    </div>
-
     <!-- ===== ENCODER LOGIN ===== -->
     <div id="encoder-login-section">
-      <div id="encoder-login-form">
-        <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" class="form-control" id="enc-login-user" placeholder="Your username" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" class="form-control" id="enc-login-pass" placeholder="Your password"
-            onkeydown="if(event.key==='Enter')loginEncoder()">
-        </div>
-        <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="loginEncoder()">
-          🚀 Login
-        </button>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" class="form-control" id="enc-login-user" placeholder="Your username" autocomplete="username">
       </div>
-
-      <div id="encoder-register-form" class="hidden">
-        <div class="alert alert-info">
-          <span class="alert-icon">ℹ️</span>
-          <div style="font-size:0.85rem;">After registering, your account must be approved by an admin before you can log in.</div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">First Name <span style="color:var(--red)">*</span></label>
-            <input type="text" class="form-control" id="enc-reg-fname" placeholder="Juan">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Last Name <span style="color:var(--red)">*</span></label>
-            <input type="text" class="form-control" id="enc-reg-lname" placeholder="Santos">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Username <span style="color:var(--red)">*</span></label>
-          <input type="text" class="form-control" id="enc-reg-user" placeholder="Choose a username">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Password <span style="color:var(--red)">*</span></label>
-            <input type="password" class="form-control" id="enc-reg-pass" placeholder="Min 6 characters">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Confirm Password</label>
-            <input type="password" class="form-control" id="enc-reg-pass2" placeholder="Repeat">
-          </div>
-        </div>
-        <button class="btn btn-success w-full btn-lg" style="margin-top:0.5rem;" onclick="registerEncoder()">
-          📝 Register
-        </button>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" id="enc-login-pass" placeholder="Your password"
+          onkeydown="if(event.key==='Enter')loginEncoder()">
       </div>
+      <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="loginEncoder()">
+        🚀 Login
+      </button>
     </div>
 
     <!-- ===== ADMIN LOGIN ===== -->
     <div id="admin-login-section" class="hidden">
-      <div id="admin-login-form">
-        <div class="form-group">
-          <label class="form-label">Username</label>
-          <input type="text" class="form-control" id="adm-login-user" placeholder="Admin username" autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" class="form-control" id="adm-login-pass" placeholder="Admin password"
-            onkeydown="if(event.key==='Enter')loginAdmin()">
-        </div>
-        <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="loginAdmin()">
-          🔓 Login as Admin
-        </button>
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" class="form-control" id="adm-login-user" placeholder="Admin username" autocomplete="username">
       </div>
-
-      <div id="admin-register-form" class="hidden">
-        <div class="alert alert-warning">
-          <span class="alert-icon">⚠️</span>
-          <div style="font-size:0.85rem;">Additional admins require an <strong>Admin Invite Code</strong> issued by the system admin.</div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">First Name <span style="color:var(--red)">*</span></label>
-            <input type="text" class="form-control" id="adm-reg-fname" placeholder="Maria">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Last Name <span style="color:var(--red)">*</span></label>
-            <input type="text" class="form-control" id="adm-reg-lname" placeholder="Reyes">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Username <span style="color:var(--red)">*</span></label>
-          <input type="text" class="form-control" id="adm-reg-user" placeholder="Choose a username">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Password <span style="color:var(--red)">*</span></label>
-            <input type="password" class="form-control" id="adm-reg-pass" placeholder="Min 8 characters">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Confirm Password</label>
-            <input type="password" class="form-control" id="adm-reg-pass2" placeholder="Repeat">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Admin Invite Code <span style="color:var(--red)">*</span></label>
-          <input type="text" class="form-control" id="adm-reg-code" placeholder="Enter invite code">
-        </div>
-        <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="registerAdmin()">
-          📝 Register Admin
-        </button>
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" id="adm-login-pass" placeholder="Admin password"
+          onkeydown="if(event.key==='Enter')loginAdmin()">
       </div>
+      <button class="btn btn-primary w-full btn-lg" style="margin-top:0.5rem;" onclick="loginAdmin()">
+        🔓 Login as Admin
+      </button>
     </div>
 
     <div class="divider"></div>
-    <p class="text-muted text-center" style="font-size:0.78rem;">JNT Express Waybill Printing System v2.0</p>
+    <p class="text-muted text-center" style="font-size:0.78rem;">JNT Express Waybill Printing System v3.0</p>
   </div>
 </div>
 
@@ -714,6 +443,7 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
       </span>
     </div>
     <div class="topbar-right">
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle Dark/Light Mode">🌙</button>
       <span class="role-badge" id="role-badge-top">ENCODER</span>
       <span id="user-name-top" style="font-size:0.88rem;font-weight:600;color:var(--text-muted);max-width:140px;" class="truncate"></span>
       <button class="btn btn-ghost btn-sm" onclick="logout()" title="Logout">⏻ Logout</button>
@@ -734,10 +464,6 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
         <div class="nav-item" onclick="showPage('admin-items','admin-nav')" data-page="admin-items">
           <span class="nav-icon">📦</span> Items
         </div>
-        <div class="nav-item" onclick="showPage('admin-encoders','admin-nav')" data-page="admin-encoders">
-          <span class="nav-icon">👥</span> Encoders
-          <span class="badge badge-warning" id="pending-badge" style="margin-left:auto;display:none;">0</span>
-        </div>
         <div class="nav-item" onclick="showPage('admin-upload','admin-nav')" data-page="admin-upload">
           <span class="nav-icon">📤</span> Upload PDF
         </div>
@@ -745,8 +471,9 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
         <div class="nav-item" onclick="showPage('admin-reports','admin-nav')" data-page="admin-reports">
           <span class="nav-icon">📋</span> Print Logs
         </div>
-        <div class="nav-item" onclick="showPage('admin-tally','admin-nav')" data-page="admin-tally">
-          <span class="nav-icon">🔢</span> Full Tally
+        <div class="sidebar-section">Tools</div>
+        <div class="nav-item" onclick="showPage('pdf-splitter','admin-nav')" data-page="pdf-splitter">
+          <span class="nav-icon">✂️</span> PDF Splitter
         </div>
         <div class="sidebar-section">System</div>
         <div class="nav-item" onclick="showPage('admin-settings','admin-nav')" data-page="admin-settings">
@@ -757,14 +484,16 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
       <!-- ENCODER NAV -->
       <div id="encoder-nav" class="hidden">
         <div class="sidebar-section">My Work</div>
-        <div class="nav-item active" onclick="showPage('encoder-items','encoder-nav')" data-page="encoder-items">
-          <span class="nav-icon">📦</span> Items & Print
+        <div class="nav-item active" onclick="showPage('encoder-files','encoder-nav')" data-page="encoder-files">
+          <span class="nav-icon">📄</span> Print Files
         </div>
-        <div class="nav-item" onclick="showPage('encoder-summary','encoder-nav')" data-page="encoder-summary">
-          <span class="nav-icon">📊</span> My Summary
+        <div class="sidebar-section">Tools</div>
+        <div class="nav-item" onclick="showPage('pdf-splitter','encoder-nav')" data-page="pdf-splitter">
+          <span class="nav-icon">✂️</span> PDF Splitter
         </div>
-        <div class="nav-item" onclick="showPage('encoder-ipriprint','encoder-nav')" data-page="encoder-ipriprint">
-          <span class="nav-icon">🖨</span> PRINT Info
+        <div class="sidebar-section">History</div>
+        <div class="nav-item" onclick="showPage('encoder-logs','encoder-nav')" data-page="encoder-logs">
+          <span class="nav-icon">📋</span> My Print Logs
         </div>
       </div>
     </nav>
@@ -782,7 +511,7 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
           <button class="btn btn-outline btn-sm" onclick="loadAdminDashboard()">🔄 Refresh</button>
         </div>
         <div class="stats-grid" id="admin-stats-grid">
-          <div class="stat-card red"><div class="stat-label">Total Items</div><div class="stat-value" id="stat-total-items">—</div><div class="stat-sub">Registered waybill items</div></div>
+          <div class="stat-card red"><div class="stat-label">Total Items</div><div class="stat-value" id="stat-total-items">—</div><div class="stat-sub">Registered items</div></div>
           <div class="stat-card green"><div class="stat-label">Total Printed</div><div class="stat-value" id="stat-total-printed">—</div><div class="stat-sub">Pages printed</div></div>
           <div class="stat-card yellow"><div class="stat-label">Remaining</div><div class="stat-value" id="stat-total-remaining">—</div><div class="stat-sub">Pages yet to print</div></div>
           <div class="stat-card blue"><div class="stat-label">Print Sessions</div><div class="stat-value" id="stat-print-sessions">—</div><div class="stat-sub">Total print actions</div></div>
@@ -808,7 +537,7 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
       <!-- ===== ADMIN: ITEMS ===== -->
       <div class="page" id="page-admin-items">
         <div class="page-header">
-          <div class="page-header-left"><h2>📦 Items Management</h2><p>Add, edit, and manage waybill items</p></div>
+          <div class="page-header-left"><h2>📦 Items Management</h2><p>Predefined item list for waybill printing</p></div>
           <button class="btn btn-primary" onclick="openAddItemModal()">+ Add Item</button>
         </div>
         <div class="card">
@@ -827,55 +556,14 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
         </div>
       </div>
 
-      <!-- ===== ADMIN: ENCODERS ===== -->
-      <div class="page" id="page-admin-encoders">
-        <div class="page-header">
-          <div class="page-header-left"><h2>👥 Encoder Management</h2><p>Approve, manage, and invite encoders</p></div>
-          <button class="btn btn-outline btn-sm" onclick="loadEncodersPage()">🔄 Refresh</button>
-        </div>
-
-        <div class="two-col">
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">⏳ Pending Approval</span>
-              <span class="badge badge-warning" id="pending-count-badge">0</span>
-            </div>
-            <div id="pending-encoders-list"><div class="empty-state"><div class="icon">⏳</div><h3>No pending requests</h3></div></div>
-          </div>
-          <div class="card">
-            <div class="card-header">
-              <span class="card-title">✅ Active Encoders</span>
-              <span class="badge badge-success" id="active-count-badge">0</span>
-            </div>
-            <div id="active-encoders-list"><div class="empty-state"><div class="icon">👥</div><h3>No active encoders</h3></div></div>
-          </div>
-        </div>
-
-        <div class="card mt-2">
-          <div class="card-header"><span class="card-title">🔑 Admin Invite Codes</span></div>
-          <p class="text-muted" style="font-size:0.83rem;margin-bottom:1rem;">Generate a one-time invite code for a new admin to register.</p>
-          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-            <button class="btn btn-primary" onclick="generateInviteCode()">🔑 Generate Invite Code</button>
-            <span id="invite-code-display" style="font-family:monospace;font-size:1.1rem;font-weight:800;color:var(--yellow);letter-spacing:2px;"></span>
-          </div>
-        </div>
-      </div>
-
       <!-- ===== ADMIN: UPLOAD ===== -->
       <div class="page" id="page-admin-upload">
         <div class="page-header">
-          <div class="page-header-left"><h2>📤 Upload IPRIPRINT PDF</h2><p>Upload PDF files and assign to encoders</p></div>
+          <div class="page-header-left"><h2>📤 Upload Waybill PDF</h2><p>Upload PDF files for printing</p></div>
         </div>
         <div class="two-col">
           <div class="card">
             <div class="card-header"><span class="card-title">📁 Upload New PDF</span></div>
-            <div class="form-group">
-              <label class="form-label">Assign to Encoder</label>
-              <select class="form-control" id="upload-encoder-select">
-                <option value="">— Select Encoder —</option>
-                <option value="all">All Encoders</option>
-              </select>
-            </div>
             <div class="form-group">
               <label class="form-label">Assign to Item</label>
               <select class="form-control" id="upload-item-select">
@@ -934,15 +622,6 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
         </div>
       </div>
 
-      <!-- ===== ADMIN: TALLY ===== -->
-      <div class="page" id="page-admin-tally">
-        <div class="page-header">
-          <div class="page-header-left"><h2>🔢 Full Tally Report</h2><p>Comprehensive print status for all items</p></div>
-          <button class="btn btn-outline btn-sm" onclick="loadTallyReport()">🔄 Refresh</button>
-        </div>
-        <div id="tally-report-container"><div class="empty-state"><div class="icon">🔢</div><h3>Loading…</h3></div></div>
-      </div>
-
       <!-- ===== ADMIN: SETTINGS ===== -->
       <div class="page" id="page-admin-settings">
         <div class="page-header">
@@ -966,10 +645,6 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
               <label class="form-label">Sheet ID</label>
               <input type="text" class="form-control" id="sheet-id-setting" placeholder="Google Sheet ID">
             </div>
-            <div class="form-group">
-              <label class="form-label">Max Pages Per Batch</label>
-              <input type="number" class="form-control" id="max-pages-setting" value="200" min="10" max="500">
-            </div>
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
               <button class="btn btn-primary" onclick="saveSettings()">💾 Save</button>
               <button class="btn btn-outline" onclick="testConnection()">🔌 Test</button>
@@ -977,64 +652,77 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
             <span id="conn-status" class="text-muted" style="font-size:0.8rem;margin-top:0.5rem;display:block;"></span>
           </div>
         </div>
-
-        <div class="card mt-2">
-          <div class="card-header"><span class="card-title">📋 Apps Script Code</span><button class="btn btn-ghost btn-sm" onclick="copyAppsScript()">📋 Copy</button></div>
-          <p class="text-muted" style="font-size:0.83rem;margin-bottom:1rem;">Deploy this code in Google Apps Script for the backend.</p>
-          <div style="background:var(--darker);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1rem;overflow-x:auto;max-height:400px;overflow-y:auto;">
-            <pre id="apps-script-code" style="font-size:0.75rem;color:var(--text-muted);white-space:pre-wrap;line-height:1.6;font-family:monospace;"></pre>
-          </div>
-        </div>
       </div>
 
-      <!-- ===== ENCODER: ITEMS & PRINT ===== -->
-      <div class="page" id="page-encoder-items">
-        <div id="encoder-banner-wrap"></div>
+      <!-- ===== ENCODER: PRINT FILES ===== -->
+      <div class="page" id="page-encoder-files">
         <div class="page-header">
-          <div class="page-header-left"><h2>📦 Items to Print</h2><p>Click PRINT on any item to start</p></div>
-          <button class="btn btn-outline btn-sm" onclick="loadEncoderItems()">🔄 Refresh</button>
+          <div class="page-header-left"><h2>📄 Print Files</h2><p>Click PRINT to open and print waybills</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadEncoderFiles()">🔄 Refresh</button>
         </div>
         <div class="filter-bar">
           <div class="search-input-wrap">
             <span class="search-icon">🔍</span>
-            <input type="text" class="search-input" id="enc-items-search" placeholder="Search items…" oninput="renderEncoderItemsGrid()">
+            <input type="text" class="search-input" id="enc-files-search" placeholder="Search files…" oninput="renderEncoderFilesGrid()">
           </div>
-          <select class="form-control" style="width:160px;" id="enc-items-filter" onchange="renderEncoderItemsGrid()">
-            <option value="all">All Items</option>
+          <select class="form-control" style="width:160px;" id="enc-files-filter" onchange="renderEncoderFilesGrid()">
+            <option value="all">All Files</option>
             <option value="pending">Has Remaining</option>
             <option value="done">Completed</option>
           </select>
         </div>
-        <div class="items-grid" id="encoder-items-grid">
+        <div class="items-grid" id="encoder-files-grid">
           <div class="empty-state" style="grid-column:1/-1;"><div class="icon">⏳</div><h3>Loading…</h3></div>
         </div>
       </div>
 
-      <!-- ===== ENCODER: MY SUMMARY ===== -->
-      <div class="page" id="page-encoder-summary">
+      <!-- ===== ENCODER: MY PRINT LOGS ===== -->
+      <div class="page" id="page-encoder-logs">
         <div class="page-header">
-          <div class="page-header-left"><h2>📊 My Print Summary</h2><p>Overview of your printing activity</p></div>
-          <button class="btn btn-outline btn-sm" onclick="loadEncoderSummary()">🔄 Refresh</button>
-        </div>
-        <div class="stats-grid">
-          <div class="stat-card green"><div class="stat-label">Pages Printed Today</div><div class="stat-value" id="enc-stat-printed">—</div></div>
-          <div class="stat-card yellow"><div class="stat-label">Remaining Pages</div><div class="stat-value" id="enc-stat-remaining">—</div></div>
-          <div class="stat-card blue"><div class="stat-label">Print Sessions</div><div class="stat-value" id="enc-stat-sessions">—</div></div>
-          <div class="stat-card red"><div class="stat-label">Items Assigned</div><div class="stat-value" id="enc-stat-items">—</div></div>
+          <div class="page-header-left"><h2>📋 My Print Logs</h2><p>Your printing history</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadEncoderLogs()">🔄 Refresh</button>
         </div>
         <div class="card">
-          <div class="card-header"><span class="card-title">🕐 My Print History</span></div>
-          <div id="my-print-history"><div class="empty-state"><div class="icon">🕐</div><h3>Loading…</h3></div></div>
+          <div id="encoder-logs-list"><div class="empty-state"><div class="icon">📋</div><h3>No print logs yet</h3></div></div>
         </div>
       </div>
 
-      <!-- ===== ENCODER: IPRIPRINT ===== -->
-      <div class="page" id="page-encoder-ipriprint">
+      <!-- ===== PDF SPLITTER (Shared) ===== -->
+      <div class="page" id="page-pdf-splitter">
         <div class="page-header">
-          <div class="page-header-left"><h2>🖨 IPRIPRINT File Info</h2><p>Your assigned PDF files</p></div>
+          <div class="page-header-left"><h2>✂️ PDF Splitter</h2><p>Split large PDFs into smaller parts</p></div>
         </div>
-        <div id="ipriprint-info-container">
-          <div class="empty-state"><div class="icon">🖨</div><h3>No files assigned yet</h3><p style="font-size:0.83rem;margin-top:0.5rem;">Ask your admin to upload your PDF file.</p></div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><span class="card-title">📁 Upload PDF</span></div>
+            <div class="form-group">
+              <label class="form-label">Split into how many pages per file?</label>
+              <input type="number" class="form-control" id="split-pages-input" value="200" min="1" max="1000">
+              <div class="form-hint">Default: 200 pages per split file</div>
+            </div>
+            <div class="upload-zone" id="split-upload-zone"
+              onclick="document.getElementById('split-pdf-input').click()"
+              ondragover="event.preventDefault();this.classList.add('dragover')"
+              ondragleave="this.classList.remove('dragover')"
+              ondrop="handleSplitFileDrop(event)">
+              <div class="upload-icon">📄</div>
+              <div class="upload-text">Drag & drop PDF here or <span>click to browse</span></div>
+              <div class="text-muted" style="margin-top:0.5rem;font-size:0.8rem;">PDF files only</div>
+            </div>
+            <input type="file" id="split-pdf-input" accept=".pdf,application/pdf" class="hidden" onchange="handleSplitFileSelect(event)">
+            <div id="split-file-info" class="upload-list"></div>
+            <div style="margin-top:1rem;">
+              <button class="btn btn-primary w-full" id="split-btn" onclick="processSplit()" disabled>
+                ✂️ Split PDF
+              </button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">📂 Split Results</span>
+            </div>
+            <div id="split-results-container"><div class="empty-state"><div class="icon">📂</div><h3>No splits yet</h3></div></div>
+          </div>
         </div>
       </div>
 
@@ -1055,7 +743,7 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
     </div>
     <div class="form-group">
       <label class="form-label">Item Name <span style="color:var(--red)">*</span></label>
-      <input type="text" class="form-control" id="item-name-input" placeholder="e.g. MANILA BATCH 1">
+      <input type="text" class="form-control" id="item-name-input" placeholder="e.g. 1 x MINI FLASHLIGHT">
     </div>
     <div class="form-group">
       <label class="form-label">Total Pages to Print <span style="color:var(--red)">*</span></label>
@@ -1073,50 +761,8 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
   </div>
 </div>
 
-<!-- Print Modal -->
-<div class="modal-overlay hidden" id="print-modal">
-  <div class="modal modal-lg">
-    <div class="modal-header">
-      <h3>🖨 Print Waybill</h3>
-      <button class="modal-close" onclick="closeModal('print-modal')">×</button>
-    </div>
-    <div id="print-modal-body"></div>
-  </div>
-</div>
-
-<!-- Delete Confirm -->
-<div class="modal-overlay hidden" id="delete-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>⚠️ Confirm Delete</h3>
-      <button class="modal-close" onclick="closeModal('delete-modal')">×</button>
-    </div>
-    <p style="color:var(--text-muted);margin-bottom:1.5rem;">Are you sure you want to delete <strong id="delete-item-name"></strong>? This cannot be undone.</p>
-    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="closeModal('delete-modal')">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmDeleteItem()">🗑 Delete</button>
-    </div>
-  </div>
-</div>
-
-<!-- Deactivate Encoder Confirm -->
-<div class="modal-overlay hidden" id="deactivate-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <h3>⚠️ Deactivate Encoder</h3>
-      <button class="modal-close" onclick="closeModal('deactivate-modal')">×</button>
-    </div>
-    <p style="color:var(--text-muted);margin-bottom:1.5rem;">Deactivate encoder <strong id="deactivate-encoder-name"></strong>? They will lose access until re-approved.</p>
-    <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
-      <button class="btn btn-ghost" onclick="closeModal('deactivate-modal')">Cancel</button>
-      <button class="btn btn-danger" onclick="confirmDeactivateEncoder()">Deactivate</button>
-    </div>
-  </div>
-</div>
-
 <!-- Toast Container -->
 <div id="toast-container"></div>
-<iframe id="print-frame" title="print"></iframe>
 
 <!-- ============================================================
      JAVASCRIPT
@@ -1125,15 +771,30 @@ tbody td { padding:0.8rem 1rem; vertical-align:middle; }
 'use strict';
 
 // ================================================================
+// PREDEFINED ITEMS LIST
+// ================================================================
+const PREDEFINED_ITEMS = [
+  "1 x MINI FLASHLIGHT", "2 x MINI FLASHLIGHT", "2 x FLASHLIGHT",
+  "1 x SEAT COVER", "1 x MOTORCYCLE GLOVES", "1 x CAMERA SHUTTER REMOTE",
+  "1 x FULLFACE BLACKLAVA", "1 x MOLDABLE FALSE TEETH",
+  "1 x HANDS FREE FEEDING BOTTLE", "1 x MINI USB FAN", "1 x MAGIC MESH",
+  "1 x HELMET CARGO NET", "1 x PANTY STOCKINGS", "4 x LEVER COVER",
+  "2 x SHOE CLEANER", "1 x FLEXIBLE CLIP PHONE HOLDER", "2 x ANTI FLEA",
+  "1 x WAISTBAND SHAPER", "1 x RUBBER COATING SPRAY", "1 x NOSE SHAPER",
+  "1 x MOTORCYCLE BOLT CUP", "1 x FACE SHAPER", "1 x LASER FLASHLIGHT",
+  "2 x MAGIC TOWEL", "1 x CUP CLEANER", "1 x GAS TREATMENT",
+  "1 x HELMET HOOK", "1 x MULTI PURPOSE SAFETY LOCK", "1 x ANTI MITES"
+];
+
+// ================================================================
 // CONFIG & STATE
 // ================================================================
 const CONFIG = {
-  version: '2.0.0',
-  maxPagesPerBatch: 200,
-  appsScriptUrl: '',
-  sheetId: '',
-  setupDone: false,
-  inviteCodes: []
+  version: '3.0.0',
+  appsScriptUrl: 'https://script.google.com/macros/s/AKfycbzVjygKd1bxP3po2QeekzUCPnefTQztjv-KZbrUiP_x5nLYuSR9G0bye95xb9iG_lygVA/exec',
+  sheetId: '1DwmwvDqt3ojpBO9siVvBWha3M9clPEcUv3XlGCVRQVs',
+  setupDone: true,
+  darkMode: false
 };
 
 const STATE = {
@@ -1146,12 +807,10 @@ const STATE = {
   users: [],
   pendingFile: null,
   pendingFileData: null,
-  pendingPrintItem: null,
+  pendingSplitFile: null,
+  pendingSplitFileData: null,
   deleteTargetId: null,
-  deactivateTargetId: null,
-  currentBatchIndex: 0,
-  printBatches: [],
-  currentPdfDoc: null
+  printedPages: new Set() // Track printed pages to avoid duplicates
 };
 
 // ================================================================
@@ -1159,13 +818,32 @@ const STATE = {
 // ================================================================
 function loadConfig() {
   try {
-    const c = JSON.parse(localStorage.getItem('jnt_config_v2') || '{}');
+    const c = JSON.parse(localStorage.getItem('jnt_config_v3') || '{}');
     Object.assign(CONFIG, c);
+    applyTheme();
   } catch(e){}
 }
 
 function saveConfig() {
-  localStorage.setItem('jnt_config_v2', JSON.stringify(CONFIG));
+  localStorage.setItem('jnt_config_v3', JSON.stringify(CONFIG));
+}
+
+function applyTheme() {
+  const html = document.documentElement;
+  const btn = document.querySelector('.theme-toggle');
+  if (CONFIG.darkMode) {
+    html.classList.remove('light-mode');
+    if (btn) btn.textContent = '🌙';
+  } else {
+    html.classList.add('light-mode');
+    if (btn) btn.textContent = '☀️';
+  }
+}
+
+function toggleTheme() {
+  CONFIG.darkMode = !CONFIG.darkMode;
+  applyTheme();
+  saveConfig();
 }
 
 // ================================================================
@@ -1200,27 +878,14 @@ function toast(msg, type='info', duration=3500) {
   el.innerHTML = `<span>${icons[type]||'•'}</span><span>${msg}</span>`;
   el.onclick = () => el.remove();
   document.getElementById('toast-container').appendChild(el);
-  setTimeout(() => { 
-    el.style.transition='opacity 0.3s'; 
-    el.style.opacity='0'; 
-    setTimeout(()=>el.remove(),300); 
-  }, duration);
+  setTimeout(() => { el.style.transition='opacity 0.3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, duration);
 }
+
 // ================================================================
 // MODAL HELPERS
 // ================================================================
 function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) {
-  if (id === 'print-modal' && isPrinting) {
-    if (confirm('Print in progress. Cancel anyway?')) {
-      resetPrintState();
-    } else {
-      return;
-    }
-  }
-  document.getElementById(id).classList.add('hidden');
-  resetPrintUI();
-}
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ================================================================
 // SPLASH
@@ -1236,133 +901,27 @@ function initSplash() {
 function afterSplash() {
   loadConfig();
   if (!CONFIG.setupDone) {
-    showFirstRun();
+    // Initialize with predefined items
+    initializePredefinedItems();
+    showAuth();
   } else {
     loadSettingsPage();
     showAuth();
   }
 }
 
-// ================================================================
-// FIRST RUN WIZARD
-// ================================================================
-let frStep = 1;
-
-function showFirstRun() {
-  document.getElementById('first-run-page').classList.remove('hidden');
-  goFrStep(1);
-}
-
-function goFrStep(n) {
-  frStep = n;
-  document.querySelectorAll('.first-run-step').forEach(s => s.classList.remove('active'));
-  const el = document.getElementById('fr-step-' + n);
-  if (el) el.classList.add('active');
-  const pills = document.querySelectorAll('.step-pill');
-  pills.forEach((p, i) => {
-    p.className = 'step-pill' + (i+1 < n ? ' done' : i+1 === n ? ' active' : '');
-  });
-  if (n === 3) buildFrConfirm();
-}
-
-function frNext(from) {
-  if (from === 1) {
-    const url = document.getElementById('fr-script-url').value.trim();
-    const sid = document.getElementById('fr-sheet-id').value.trim();
-    if (!url) { toast('Please enter the Apps Script URL', 'error'); return; }
-    if (!url.includes('script.google.com')) { toast('URL does not look like a Google Apps Script URL', 'warning'); }
-    if (!sid) { toast('Please enter the Google Sheet ID', 'error'); return; }
-    CONFIG.appsScriptUrl = url;
-    CONFIG.sheetId = sid;
-    goFrStep(2);
-  } else if (from === 2) {
-    const fn   = document.getElementById('fr-admin-fname').value.trim();
-    const ln   = document.getElementById('fr-admin-lname').value.trim();
-    const user = document.getElementById('fr-admin-user').value.trim();
-    const pass = document.getElementById('fr-admin-pass').value;
-    const pass2= document.getElementById('fr-admin-pass2').value;
-    if (!fn || !ln || !user) { toast('Please fill all name fields', 'error'); return; }
-    if (!pass || pass.length < 8) { toast('Password must be at least 8 characters', 'error'); return; }
-    if (pass !== pass2) { toast('Passwords do not match', 'error'); return; }
-    goFrStep(3);
-  }
-}
-
-function frBack(from) {
-  goFrStep(from - 1);
-}
-
-function buildFrConfirm() {
-  const url  = document.getElementById('fr-script-url').value.trim();
-  const sid  = document.getElementById('fr-sheet-id').value.trim();
-  const user = document.getElementById('fr-admin-user').value.trim();
-  const fn   = document.getElementById('fr-admin-fname').value.trim();
-  const ln   = document.getElementById('fr-admin-lname').value.trim();
-  document.getElementById('fr-confirm-summary').innerHTML = `
-    <div class="ipriprint-row"><div class="key">Apps Script URL</div><div class="val" style="font-size:0.75rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${url}</div></div>
-    <div class="ipriprint-row"><div class="key">Sheet ID</div><div class="val">${sid}</div></div>
-    <div class="ipriprint-row"><div class="key">Admin Username</div><div class="val">${user}</div></div>
-    <div class="ipriprint-row"><div class="key">Admin Name</div><div class="val">${fn} ${ln}</div></div>
-  `;
-}
-
-async function frTestConnection() {
-  const url = document.getElementById('fr-script-url').value.trim();
-  if (!url) { toast('Enter URL first', 'error'); return; }
-  CONFIG.appsScriptUrl = url;
-  toast('Testing connection…', 'info');
-  const r = await api('ping');
-  if (r.success) {
-    toast('✅ Connection successful!', 'success');
-  } else {
-    toast('❌ Connection failed: ' + r.error, 'error');
-  }
-}
-
-async function finishFirstRun() {
-  const btn  = document.getElementById('fr-finish-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Setting up…';
-
-  const fn   = document.getElementById('fr-admin-fname').value.trim();
-  const ln   = document.getElementById('fr-admin-lname').value.trim();
-  const user = document.getElementById('fr-admin-user').value.trim();
-  const pass = document.getElementById('fr-admin-pass').value;
-
-  try {
-    // Hash password (simple SHA-256 via SubtleCrypto)
-    const hash = await hashPassword(pass);
-
-    const adminUser = {
-      id: 'usr_' + Date.now(),
-      username: user,
-      passwordHash: hash,
-      firstName: fn,
-      lastName: ln,
-      role: 'admin',
-      status: 'active',
-      createdAt: nowStr()
-    };
-
-    // Save to Google Sheets
-    const r = await api('registerUser', { user: adminUser });
-    if (!r.success) {
-      throw new Error(r.error || 'Failed to save admin to Google Sheets');
-    }
-
-    CONFIG.appsScriptUrl = document.getElementById('fr-script-url').value.trim();
-    CONFIG.sheetId = document.getElementById('fr-sheet-id').value.trim();
-    CONFIG.setupDone = true;
-    saveConfig();
-
-    document.getElementById('first-run-page').classList.add('hidden');
-    toast('🎉 Setup complete! Please log in.', 'success');
-    loadSettingsPage();
-    showAuth();
-  } catch(e) {
-    toast('Setup failed: ' + e.message, 'error');
-    btn.disabled = false;
-    btn.innerHTML = '🚀 Finish Setup';
+function initializePredefinedItems() {
+  // Check if predefined items exist
+  if (STATE.items.length === 0) {
+    PREDEFINED_ITEMS.forEach((itemName, index) => {
+      STATE.items.push({
+        id: 'itm_' + Date.now() + '_' + index,
+        name: itemName,
+        total: 0, // Will be updated when admin sets quantities
+        printed: 0,
+        remaining: 0
+      });
+    });
   }
 }
 
@@ -1379,22 +938,6 @@ function switchAuthRole(role) {
   document.getElementById('admin-login-section').classList.toggle('hidden', role !== 'admin');
   document.getElementById('tab-encoder').classList.toggle('active', role === 'encoder');
   document.getElementById('tab-admin').classList.toggle('active', role === 'admin');
-  // Reset to login mode when switching roles
-  switchAuthMode('login');
-}
-
-function switchAuthMode(mode) {
-  const role = document.getElementById('encoder-login-section').classList.contains('hidden') ? 'admin' : 'encoder';
-  document.getElementById('mode-login').classList.toggle('active', mode === 'login');
-  document.getElementById('mode-register').classList.toggle('active', mode === 'register');
-
-  if (role === 'encoder') {
-    document.getElementById('encoder-login-form').classList.toggle('hidden', mode !== 'login');
-    document.getElementById('encoder-register-form').classList.toggle('hidden', mode !== 'register');
-  } else {
-    document.getElementById('admin-login-form').classList.toggle('hidden', mode !== 'login');
-    document.getElementById('admin-register-form').classList.toggle('hidden', mode !== 'register');
-  }
 }
 
 // ================================================================
@@ -1424,11 +967,6 @@ async function doLogin(username, password, role) {
       return;
     }
     const user = r.user;
-    if (user.status === 'pending') {
-      document.getElementById('auth-page').classList.add('hidden');
-      showPendingScreen(user);
-      return;
-    }
     if (user.status === 'inactive') {
       toast('Your account has been deactivated. Contact admin.', 'error');
       return;
@@ -1442,104 +980,6 @@ async function doLogin(username, password, role) {
   }
 }
 
-function showPendingScreen(user) {
-  document.getElementById('app').classList.remove('hidden');
-  document.getElementById('role-badge-top').textContent = 'PENDING';
-  document.getElementById('user-name-top').textContent = user.firstName + ' ' + user.lastName;
-  document.getElementById('admin-nav').classList.add('hidden');
-  document.getElementById('encoder-nav').classList.add('hidden');
-
-  document.querySelector('.main-content').innerHTML = `
-    <div class="pending-screen">
-      <div class="pending-icon">⏳</div>
-      <h2 style="margin-bottom:0.5rem;">Account Pending Approval</h2>
-      <p class="text-muted" style="max-width:400px;">Hi <strong>${user.firstName}</strong>, your encoder account has been registered and is awaiting admin approval. Please check back later or contact your administrator.</p>
-      <button class="btn btn-outline mt-2" onclick="logout()">← Back to Login</button>
-    </div>
-  `;
-}
-
-// ================================================================
-// REGISTRATION
-// ================================================================
-async function registerEncoder() {
-  const fn   = document.getElementById('enc-reg-fname').value.trim();
-  const ln   = document.getElementById('enc-reg-lname').value.trim();
-  const user = document.getElementById('enc-reg-user').value.trim();
-  const pass = document.getElementById('enc-reg-pass').value;
-  const pass2= document.getElementById('enc-reg-pass2').value;
-
-  if (!fn || !ln || !user) { toast('Please fill all fields', 'error'); return; }
-  if (!pass || pass.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
-  if (pass !== pass2) { toast('Passwords do not match', 'error'); return; }
-
-  toast('Registering…', 'info', 2000);
-  try {
-    const hash = await hashPassword(pass);
-    const newUser = {
-      id: 'usr_' + Date.now(),
-      username: user,
-      passwordHash: hash,
-      firstName: fn,
-      lastName: ln,
-      role: 'encoder',
-      status: 'pending',
-      createdAt: nowStr()
-    };
-    const r = await api('registerUser', { user: newUser });
-    if (!r.success) { toast(r.error || 'Registration failed', 'error'); return; }
-    toast('✅ Registered! Awaiting admin approval.', 'success', 5000);
-    // Clear form
-    ['enc-reg-fname','enc-reg-lname','enc-reg-user','enc-reg-pass','enc-reg-pass2'].forEach(id => document.getElementById(id).value = '');
-    switchAuthMode('login');
-  } catch(e) {
-    toast('Registration error: ' + e.message, 'error');
-  }
-}
-
-async function registerAdmin() {
-  const fn   = document.getElementById('adm-reg-fname').value.trim();
-  const ln   = document.getElementById('adm-reg-lname').value.trim();
-  const user = document.getElementById('adm-reg-user').value.trim();
-  const pass = document.getElementById('adm-reg-pass').value;
-  const pass2= document.getElementById('adm-reg-pass2').value;
-  const code = document.getElementById('adm-reg-code').value.trim();
-
-  if (!fn || !ln || !user || !code) { toast('Please fill all fields', 'error'); return; }
-  if (!pass || pass.length < 8) { toast('Password must be at least 8 characters', 'error'); return; }
-  if (pass !== pass2) { toast('Passwords do not match', 'error'); return; }
-
-  toast('Verifying invite code…', 'info', 2000);
-  try {
-    // Verify code against Sheets
-    const verify = await api('verifyInviteCode', { code });
-    if (!verify.success) { toast('Invalid or expired invite code', 'error'); return; }
-
-    const hash = await hashPassword(pass);
-    const newUser = {
-      id: 'usr_' + Date.now(),
-      username: user,
-      passwordHash: hash,
-      firstName: fn,
-      lastName: ln,
-      role: 'admin',
-      status: 'active',
-      createdAt: nowStr()
-    };
-    const r = await api('registerUser', { user: newUser });
-    if (!r.success) { toast(r.error || 'Registration failed', 'error'); return; }
-
-    // Consume invite code
-    await api('consumeInviteCode', { code });
-
-    toast('✅ Admin account created! You can now login.', 'success', 5000);
-    ['adm-reg-fname','adm-reg-lname','adm-reg-user','adm-reg-pass','adm-reg-pass2','adm-reg-code'].forEach(id => document.getElementById(id).value = '');
-    switchAuthMode('login');
-  } catch(e) {
-    toast('Registration error: ' + e.message, 'error');
-  }
-}
-
 // ================================================================
 // LOGOUT
 // ================================================================
@@ -1550,10 +990,8 @@ function logout() {
   STATE.logs = [];
   STATE.uploads = [];
   STATE.users = [];
+  STATE.printedPages.clear();
   document.getElementById('app').classList.add('hidden');
-  // Restore main-content if it was replaced by pending screen
-  const mc = document.querySelector('.main-content');
-  if (mc && !mc.querySelector('.page')) location.reload();
   document.getElementById('auth-page').classList.remove('hidden');
   clearAuthForms();
 }
@@ -1583,12 +1021,10 @@ async function initApp(role) {
     await loadAllData();
     loadAdminDashboard();
   } else {
-    renderEncoderBanner();
-    showPage('encoder-items', 'encoder-nav');
+    showPage('encoder-files', 'encoder-nav');
     await loadAllData();
-    loadEncoderItems();
+    loadEncoderFiles();
   }
-  document.getElementById('apps-script-code').textContent = getAppsScriptCode();
 }
 
 // ================================================================
@@ -1605,6 +1041,16 @@ async function loadAllData() {
   if (logsR.success)    STATE.logs    = logsR.data    || [];
   if (uploadsR.success) STATE.uploads = uploadsR.data || [];
   if (usersR.success)   STATE.users   = usersR.data   || [];
+  
+  // Load already printed pages from localStorage
+  try {
+    const printed = JSON.parse(localStorage.getItem('jnt_printed_pages') || '[]');
+    STATE.printedPages = new Set(printed);
+  } catch(e) {}
+}
+
+function savePrintedPages() {
+  localStorage.setItem('jnt_printed_pages', JSON.stringify([...STATE.printedPages]));
 }
 
 // ================================================================
@@ -1621,11 +1067,9 @@ function showPage(pageId, navId) {
 
   if (pageId === 'admin-items')    renderAdminItemsTable();
   if (pageId === 'admin-reports')  loadPrintLogs();
-  if (pageId === 'admin-tally')    loadTallyReport();
   if (pageId === 'admin-upload')   { populateUploadSelects(); loadUploadHistory(); }
-  if (pageId === 'admin-encoders') loadEncodersPage();
-  if (pageId === 'encoder-summary')   loadEncoderSummary();
-  if (pageId === 'encoder-ipriprint') loadEncoderIpriprint();
+  if (pageId === 'encoder-files')  loadEncoderFiles();
+  if (pageId === 'encoder-logs')   loadEncoderLogs();
 }
 
 function toggleSidebar() {
@@ -1639,7 +1083,6 @@ function loadAdminDashboard() {
   updateAdminStats();
   renderDashboardItems();
   renderDashboardLogs();
-  updatePendingBadge();
 }
 
 function updateAdminStats() {
@@ -1647,15 +1090,6 @@ function updateAdminStats() {
   document.getElementById('stat-total-printed').textContent  = STATE.items.reduce((s,i)=>s+(i.printed||0),0).toLocaleString();
   document.getElementById('stat-total-remaining').textContent= STATE.items.reduce((s,i)=>s+(i.remaining||0),0).toLocaleString();
   document.getElementById('stat-print-sessions').textContent = STATE.logs.length;
-}
-
-function updatePendingBadge() {
-  const pending = STATE.users.filter(u => u.status === 'pending' && u.role === 'encoder').length;
-  const badge = document.getElementById('pending-badge');
-  if (badge) {
-    badge.textContent = pending;
-    badge.style.display = pending > 0 ? 'inline-flex' : 'none';
-  }
 }
 
 function renderDashboardItems() {
@@ -1667,16 +1101,10 @@ function renderDashboardItems() {
       <td><span class="bold">${escHtml(item.name)}</span></td>
       <td>${item.total.toLocaleString()}</td>
       <td class="text-green bold">${item.printed.toLocaleString()}</td>
-      <td>
-        <div style="min-width:80px;">
-          <div class="progress-wrap" style="height:6px;margin-bottom:0.3rem;"><div class="progress-bar green" style="width:${pct}%"></div></div>
-          <span style="font-size:0.75rem;color:var(--text-muted)">${pct}%</span>
-        </div>
-      </td>
       <td><span class="badge ${item.remaining===0?'badge-success':'badge-warning'}">${item.remaining===0?'Done':'Pending'}</span></td>
     </tr>`;
   }).join('');
-  cont.innerHTML = `<table><thead><tr><th>Item</th><th>Total</th><th>Printed</th><th>Progress</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
+  cont.innerHTML = `<table><thead><tr><th>Item</th><th>Total</th><th>Printed</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderDashboardLogs() {
@@ -1684,9 +1112,9 @@ function renderDashboardLogs() {
   const recent = [...STATE.logs].reverse().slice(0,5);
   if (!recent.length) { cont.innerHTML = `<div class="empty-state"><div class="icon">🕐</div><h3>No logs yet</h3></div>`; return; }
   cont.innerHTML = recent.map(log => `
-    <div class="ipriprint-row">
-      <div><div style="font-weight:700;font-size:0.88rem;">${escHtml(log.encoder)}</div><div class="text-muted" style="font-size:0.75rem;">${escHtml(log.item)} • pp${log.pagesFrom}–${log.pagesTo}</div></div>
-      <div style="text-align:right;"><div class="text-green bold">${log.pages} pages</div><div class="text-muted" style="font-size:0.73rem;">${formatTime(log.timestamp)}</div></div>
+    <div class="ipriprint-row" style="padding:0.8rem;background:var(--darker);border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;margin-bottom:0.5rem;">
+      <div><div style="font-weight:700;font-size:0.88rem;">${escHtml(log.encoder)}</div><div class="text-muted" style="font-size:0.75rem;">${escHtml(log.item)} • ${log.pages} pages</div></div>
+      <div class="text-muted" style="font-size:0.73rem;">${formatTime(log.timestamp)}</div>
     </div>`).join('');
 }
 
@@ -1778,8 +1206,9 @@ function openDeleteModal(id) {
   const item = STATE.items.find(i => i.id === id);
   if (!item) return;
   STATE.deleteTargetId = id;
-  document.getElementById('delete-item-name').textContent = item.name;
-  openModal('delete-modal');
+  if (confirm(`Delete item "${item.name}"? This cannot be undone.`)) {
+    confirmDeleteItem();
+  }
 }
 
 async function confirmDeleteItem() {
@@ -1787,116 +1216,15 @@ async function confirmDeleteItem() {
   const r = await api('deleteItem', { id });
   if (!r.success) { toast('Delete failed: ' + r.error, 'error'); return; }
   STATE.items = STATE.items.filter(i => i.id !== id);
-  closeModal('delete-modal');
   renderAdminItemsTable();
   updateAdminStats();
   toast('Item deleted', 'success');
 }
 
 // ================================================================
-// ADMIN ENCODERS
-// ================================================================
-async function loadEncodersPage() {
-  const r = await api('getUsers');
-  if (r.success) STATE.users = r.data || [];
-
-  const pending = STATE.users.filter(u => u.role === 'encoder' && u.status === 'pending');
-  const active  = STATE.users.filter(u => u.role === 'encoder' && u.status === 'active');
-
-  document.getElementById('pending-count-badge').textContent = pending.length;
-  document.getElementById('active-count-badge').textContent  = active.length;
-  updatePendingBadge();
-
-  // Render pending
-  const pendingCont = document.getElementById('pending-encoders-list');
-  if (!pending.length) {
-    pendingCont.innerHTML = `<div class="empty-state" style="padding:2rem;"><div class="icon">✅</div><h3>No pending requests</h3></div>`;
-  } else {
-    pendingCont.innerHTML = pending.map(u => `
-      <div class="encoder-status-card" style="margin-bottom:0.6rem;">
-        <div>
-          <div style="font-weight:700;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
-          <div class="text-muted" style="font-size:0.78rem;">@${escHtml(u.username)} • ${u.createdAt}</div>
-        </div>
-        <div style="display:flex;gap:0.5rem;">
-          <button class="btn btn-success btn-sm" onclick="approveEncoder('${u.id}')">✅ Approve</button>
-          <button class="btn btn-danger btn-sm" onclick="rejectEncoder('${u.id}')">❌ Reject</button>
-        </div>
-      </div>`).join('');
-  }
-
-  // Render active
-  const activeCont = document.getElementById('active-encoders-list');
-  if (!active.length) {
-    activeCont.innerHTML = `<div class="empty-state" style="padding:2rem;"><div class="icon">👥</div><h3>No active encoders</h3></div>`;
-  } else {
-    activeCont.innerHTML = active.map(u => `
-      <div class="encoder-status-card" style="margin-bottom:0.6rem;">
-        <div>
-          <div style="font-weight:700;">${escHtml(u.firstName)} ${escHtml(u.lastName)}</div>
-          <div class="text-muted" style="font-size:0.78rem;">@${escHtml(u.username)} • Joined ${u.createdAt?.slice(0,10)||''}</div>
-        </div>
-        <button class="btn btn-ghost btn-sm" onclick="openDeactivateModal('${u.id}')">🔒 Deactivate</button>
-      </div>`).join('');
-  }
-}
-
-async function approveEncoder(id) {
-  const r = await api('updateUserStatus', { id, status: 'active' });
-  if (!r.success) { toast('Failed: ' + r.error, 'error'); return; }
-  const u = STATE.users.find(u => u.id === id);
-  if (u) u.status = 'active';
-  toast('Encoder approved!', 'success');
-  loadEncodersPage();
-}
-
-async function rejectEncoder(id) {
-  if (!confirm('Reject and delete this encoder registration?')) return;
-  const r = await api('deleteUser', { id });
-  if (!r.success) { toast('Failed: ' + r.error, 'error'); return; }
-  STATE.users = STATE.users.filter(u => u.id !== id);
-  toast('Registration rejected', 'warning');
-  loadEncodersPage();
-}
-
-function openDeactivateModal(id) {
-  const u = STATE.users.find(u => u.id === id);
-  if (!u) return;
-  STATE.deactivateTargetId = id;
-  document.getElementById('deactivate-encoder-name').textContent = u.firstName + ' ' + u.lastName;
-  openModal('deactivate-modal');
-}
-
-async function confirmDeactivateEncoder() {
-  const r = await api('updateUserStatus', { id: STATE.deactivateTargetId, status: 'inactive' });
-  if (!r.success) { toast('Failed: ' + r.error, 'error'); return; }
-  const u = STATE.users.find(u => u.id === STATE.deactivateTargetId);
-  if (u) u.status = 'inactive';
-  closeModal('deactivate-modal');
-  toast('Encoder deactivated', 'warning');
-  loadEncodersPage();
-}
-
-async function generateInviteCode() {
-  const code = 'INV-' + Math.random().toString(36).substring(2,8).toUpperCase();
-  const r = await api('addInviteCode', { code, createdBy: STATE.currentUser.id, createdAt: nowStr() });
-  if (!r.success) { toast('Failed to save code: ' + r.error, 'error'); return; }
-  document.getElementById('invite-code-display').textContent = code;
-  toast('Invite code generated: ' + code, 'success', 8000);
-}
-
-// ================================================================
 // ADMIN UPLOAD
 // ================================================================
 function populateUploadSelects() {
-  // Encoders
-  const encSel = document.getElementById('upload-encoder-select');
-  if (encSel) {
-    const active = STATE.users.filter(u => u.role === 'encoder' && u.status === 'active');
-    encSel.innerHTML = '<option value="">— Select Encoder —</option><option value="all">All Encoders</option>' +
-      active.map(u => `<option value="${u.username}">${escHtml(u.firstName+' '+u.lastName)} (@${u.username})</option>`).join('');
-  }
-  // Items
   const itemSel = document.getElementById('upload-item-select');
   if (itemSel) {
     itemSel.innerHTML = '<option value="">— Select Item —</option>' +
@@ -1923,19 +1251,22 @@ function processFileSelection(file) {
   reader.readAsArrayBuffer(file);
   const sizeStr = (file.size/1024/1024).toFixed(2) + ' MB';
   document.getElementById('upload-file-list').innerHTML = `
-    <div class="upload-file-item">
-      <span class="upload-file-icon">📄</span>
-      <div class="upload-file-info"><div class="upload-file-name">${escHtml(file.name)}</div><div class="upload-file-size">${sizeStr}</div></div>
+    <div class="upload-file-item" style="display:flex;align-items:center;justify-content:space-between;background:var(--darker);border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:1.4rem;">📄</span>
+        <div>
+          <div style="font-weight:600;">${escHtml(file.name)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">${sizeStr}</div>
+        </div>
+      </div>
       <span class="badge badge-info">Ready</span>
     </div>`;
   document.getElementById('upload-btn').disabled = false;
 }
 
 async function processUpload() {
-  const encoderVal = document.getElementById('upload-encoder-select').value;
   const itemId     = document.getElementById('upload-item-select').value;
   if (!STATE.pendingFile) { toast('No file selected', 'error'); return; }
-  if (!encoderVal) { toast('Select an encoder', 'error'); return; }
   if (!itemId) { toast('Select an item', 'error'); return; }
 
   const item = STATE.items.find(i => i.id === itemId);
@@ -1950,13 +1281,12 @@ async function processUpload() {
       try {
         const pdfDoc = await pdfjsLib.getDocument({ data: STATE.pendingFileData.slice(0) }).promise;
         pageCount = pdfDoc.numPages;
-      } catch(e) { pageCount = item.remaining; }
-    } else { pageCount = item.remaining; }
+      } catch(e) { pageCount = 100; }
+    } else { pageCount = 100; }
 
     const upload = {
       id: 'upl_' + Date.now(),
       filename: STATE.pendingFile.name,
-      encoderUsername: encoderVal,
       itemId: itemId,
       itemName: item.name,
       pages: pageCount,
@@ -1969,9 +1299,9 @@ async function processUpload() {
 
     STATE.uploads.push(upload);
 
-    // Store PDF in sessionStorage
+    // Store PDF in sessionStorage (accessible to all encoders)
     try {
-      const key = `pdf_${encoderVal}_${itemId}`;
+      const key = `pdf_global_${itemId}`;
       const bytes = new Uint8Array(STATE.pendingFileData);
       let binary = '';
       for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
@@ -1996,18 +1326,183 @@ function loadUploadHistory() {
   const cont = document.getElementById('upload-history-list');
   if (!STATE.uploads.length) { cont.innerHTML = `<div class="empty-state"><div class="icon">📂</div><h3>No uploads yet</h3></div>`; return; }
   cont.innerHTML = [...STATE.uploads].reverse().map(u => `
-    <div class="upload-file-item">
-      <span class="upload-file-icon">📄</span>
-      <div class="upload-file-info">
-        <div class="upload-file-name">${escHtml(u.filename)}</div>
-        <div class="upload-file-size">
-          <span class="tag">${escHtml(u.encoderUsername)}</span>
-          <span class="tag" style="margin-left:0.3rem;">${escHtml(u.itemName)}</span>
-          <span class="text-muted" style="margin-left:0.3rem;">${u.pages} pages</span>
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--darker);border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;margin-bottom:0.5rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;">
+        <span style="font-size:1.4rem;">📄</span>
+        <div>
+          <div style="font-weight:600;">${escHtml(u.filename)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">
+            <span class="tag">${escHtml(u.itemName)}</span>
+            <span style="margin-left:0.3rem;">${u.pages} pages</span>
+          </div>
         </div>
-        <div class="text-muted" style="font-size:0.72rem;margin-top:0.2rem;">${u.uploadDate}</div>
       </div>
       <span class="badge badge-success">Uploaded</span>
+    </div>`).join('');
+}
+
+// ================================================================
+// ENCODER FILES & PRINTING
+// ================================================================
+function loadEncoderFiles() {
+  renderEncoderFilesGrid();
+}
+
+function renderEncoderFilesGrid() {
+  let items = STATE.items;
+  const search = (document.getElementById('enc-files-search')?.value || '').toLowerCase();
+  const filt = document.getElementById('enc-files-filter')?.value || 'all';
+  
+  if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
+  if (filt === 'pending') items = items.filter(i => i.remaining > 0);
+  if (filt === 'done') items = items.filter(i => i.remaining === 0);
+  
+  const cont = document.getElementById('encoder-files-grid');
+  if (!items.length) {
+    cont.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📦</div><h3>No files found</h3></div>`;
+    return;
+  }
+  
+  cont.innerHTML = items.map(item => {
+    const pct = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
+    const hasPdf = STATE.uploads.some(u => u.itemId === item.id);
+    return `
+      <div class="item-card ${!hasPdf ? 'border-red' : ''}" onclick="${hasPdf ? `printItem('${item.id}')` : ''}" style="cursor:${hasPdf ? 'pointer' : 'default'};${!hasPdf ? 'opacity:0.6' : ''}">
+        <div class="item-card-header">
+          <div class="item-name">${escHtml(item.name)}</div>
+          <div style="font-size:1.1rem;font-weight:800;color:${hasPdf ? 'var(--green)' : 'var(--orange)'};">${hasPdf ? '✅' : '⏳'}</div>
+        </div>
+        <div class="item-meta">
+          <div class="item-meta-row"><span class="label">Total:</span><span class="value">${item.total.toLocaleString()}</span></div>
+          <div class="item-meta-row"><span class="label">Printed:</span><span class="value text-green">${item.printed.toLocaleString()}</span></div>
+          <div class="item-meta-row"><span class="label">Remaining:</span><span class="value text-yellow bold">${item.remaining.toLocaleString()}</span></div>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar green" style="width:${pct}%"></div></div>
+        ${!hasPdf ? '<div class="text-red" style="font-size:0.8rem;margin-top:0.5rem;">📄 PDF file not uploaded yet</div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+async function printItem(itemId) {
+  const item = STATE.items.find(i => i.id === itemId);
+  if (!item || item.remaining <= 0) {
+    toast('No pages remaining to print', 'warning');
+    return;
+  }
+  
+  // Load PDF from sessionStorage
+  const key = `pdf_global_${itemId}`;
+  try {
+    const stored = sessionStorage.getItem(key);
+    if (!stored) {
+      toast('PDF file not found. Please contact admin.', 'error');
+      return;
+    }
+    
+    const binary = atob(stored);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    
+    // Store print info for the new window
+    const printSessionKey = 'print_session_' + Date.now();
+    sessionStorage.setItem(printSessionKey, JSON.stringify({
+      itemId: itemId,
+      itemName: item.name,
+      encoderUsername: STATE.currentUser.username,
+      encoderName: STATE.currentUser.firstName + ' ' + STATE.currentUser.lastName
+    }));
+    
+    // Open PDF in new tab with print dialog
+    const printWindow = window.open(pdfUrl, '_blank');
+    
+    // Create a print listener in the new window
+    printWindow.onload = function() {
+      // Inject auto-print script
+      const script = printWindow.document.createElement('script');
+      script.textContent = `
+        setTimeout(function() {
+          window.print();
+          window.onafterprint = function() {
+            window.close();
+          };
+        }, 500);
+      `;
+      printWindow.document.appendChild(script);
+    };
+    
+    // Record print log
+    await recordPrint(item, 1); // Default 1 page for now
+    
+    toast('✅ Opening print dialog...', 'success');
+    
+  } catch(e) {
+    console.error('Print error:', e);
+    toast('Failed to print: ' + e.message, 'error');
+  }
+}
+
+async function recordPrint(item, pagesPrinted) {
+  // Check if already printed to avoid duplicates
+  const printKey = `${item.id}_${item.printed}_${pagesPrinted}_${Date.now()}`;
+  if (STATE.printedPages.has(printKey)) {
+    console.log('Duplicate print prevented');
+    return;
+  }
+  STATE.printedPages.add(printKey);
+  savePrintedPages();
+  
+  const log = {
+    id: 'log_' + Date.now(),
+    encoder: STATE.currentUser.firstName + ' ' + STATE.currentUser.lastName,
+    encoderUsername: STATE.currentUser.username,
+    item: item.name,
+    itemId: item.id,
+    pages: pagesPrinted,
+    timestamp: nowStr()
+  };
+  
+  // Save to backend
+  const r = await api('logPrint', { log });
+  if (!r.success) {
+    console.error('Failed to log print:', r.error);
+    return;
+  }
+  
+  STATE.logs.push(log);
+  
+  // Update item stats
+  item.printed += pagesPrinted;
+  item.remaining -= pagesPrinted;
+  
+  // Update item in backend
+  await api('updateItem', { id: item.id, data: { printed: item.printed, remaining: item.remaining } });
+  
+  // Refresh UI
+  updateAdminStats();
+  renderEncoderFilesGrid();
+}
+
+// ================================================================
+// ENCODER LOGS
+// ================================================================
+async function loadEncoderLogs() {
+  const userLogs = STATE.logs.filter(l => l.encoderUsername === STATE.currentUser.username);
+  const cont = document.getElementById('encoder-logs-list');
+  
+  if (!userLogs.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="icon">📋</div><h3>No print logs yet</h3></div>`;
+    return;
+  }
+  
+  cont.innerHTML = [...userLogs].reverse().map(log => `
+    <div style="display:flex;justify-content:space-between;background:var(--darker);border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;margin-bottom:0.5rem;">
+      <div>
+        <div style="font-weight:700;">${escHtml(log.item)}</div>
+        <div class="text-muted" style="font-size:0.75rem;">${log.pages} pages</div>
+      </div>
+      <div class="text-muted" style="font-size:0.73rem;">${formatTime(log.timestamp)}</div>
     </div>`).join('');
 }
 
@@ -2034,12 +1529,10 @@ function renderPrintLogsTable() {
   const rows = logs.map(l=>`<tr>
     <td><span class="bold">${escHtml(l.encoder||l.encoderUsername||'')}</span></td>
     <td>${escHtml(l.item||l.itemName||'')}</td>
-    <td><span class="badge badge-info">pp${l.pagesFrom}–${l.pagesTo}</span></td>
     <td class="text-green bold">${l.pages}</td>
-    <td><span class="badge badge-muted">Batch ${l.batch}</span></td>
     <td class="text-muted" style="font-size:0.8rem;">${l.timestamp}</td>
   </tr>`).join('');
-  cont.innerHTML = `<table><thead><tr><th>Encoder</th><th>Item</th><th>Range</th><th>Pages</th><th>Batch</th><th>Timestamp</th></tr></thead><tbody>${rows}</tbody></table>`;
+  cont.innerHTML = `<table><thead><tr><th>Encoder</th><th>Item</th><th>Pages</th><th>Timestamp</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function populateLogsEncoderFilter() {
@@ -2051,10 +1544,9 @@ function populateLogsEncoderFilter() {
 }
 
 function exportLogs() {
-  const rows = [['Encoder','Item','Pages From','Pages To','Pages Printed','Batch','Timestamp']];
-  STATE.logs.forEach(l => rows.push([l.encoder||l.encoderUsername||'', l.item||l.itemName||'', l.pagesFrom, l.pagesTo, l.pages, l.batch, l.timestamp]));
-  const csv = rows.map(r => r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\
-');
+  const rows = [['Encoder','Item','Pages Printed','Timestamp']];
+  STATE.logs.forEach(l => rows.push([l.encoder||l.encoderUsername||'', l.item||l.itemName||'', l.pages, l.timestamp]));
+  const csv = rows.map(r => r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob([csv],{type:'text/csv'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2064,1068 +1556,110 @@ function exportLogs() {
 }
 
 // ================================================================
-// ADMIN TALLY
+// PDF SPLITTER
 // ================================================================
-// Continue from where it was cut off
-function loadTallyReport() {
-  const cont = document.getElementById('tally-report-container');
-  if (!STATE.items.length) { 
-    cont.innerHTML = `<div class="empty-state"><div class="icon">🔢</div><h3>No items found</h3></div>`; 
-    return; 
-  }
-  
-  const totalPages = STATE.items.reduce((s,i)=>s+(i.total||0),0);
-  const totalPrinted = STATE.items.reduce((s,i)=>s+(i.printed||0),0);
-  const totalRemaining = STATE.items.reduce((s,i)=>s+(i.remaining||0),0);
-  const completionPct = totalPages > 0 ? Math.round((totalPrinted/totalPages)*100) : 0;
-  
-  let html = `
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">📊 Overall Progress</span>
-      </div>
-      <div style="text-align:center;padding:2rem;">
-        <div class="stat-value" style="font-size:3rem;margin-bottom:0.5rem;">${completionPct}%</div>
-        <div class="progress-wrap" style="width:200px;height:16px;margin:0 auto 1rem;">
-          <div class="progress-bar green" style="width:${completionPct}%"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;font-size:0.9rem;">
-          <div><span class="text-muted">Total:</span> ${totalPages.toLocaleString()}</div>
-          <div><span class="text-green bold">Printed:</span> ${totalPrinted.toLocaleString()}</div>
-          <div class="text-yellow bold">Remaining:</div> ${totalRemaining.toLocaleString()}
-        </div>
-      </div>
-    </div>
-  `;
-  
-  // Items table
-  html += `
-    <div class="card mt-2">
-      <div class="card-header">
-        <span class="card-title">📋 Items Tally</span>
-      </div>
-      <div class="table-wrapper">
-        <table>
-          <thead><tr>
-            <th>Item</th><th>ID</th><th>Total</th><th>Printed</th><th>Remaining</th><th>Progress</th>
-          </tr></thead>
-          <tbody>
-  `;
-  
-  STATE.items.forEach(item => {
-    const pct = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
-    html += `
-      <tr>
-        <td><span class="bold">${escHtml(item.name)}</span></td>
-        <td>#${item.id}</td>
-        <td>${item.total.toLocaleString()}</td>
-        <td class="text-green">${item.printed.toLocaleString()}</td>
-        <td class="text-yellow">${item.remaining.toLocaleString()}</td>
-        <td>
-          <div style="min-width:80px;">
-            <div class="progress-wrap" style="height:8px;"><div class="progress-bar" style="width:${pct}%"></div></div>
-            <span style="font-size:0.75rem;">${pct}%</span>
-          </div>
-        </td>
-      </tr>`;
-  });
-  
-  html += `
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-  
-  cont.innerHTML = html;
+function handleSplitFileDrop(e) {
+  e.preventDefault();
+  document.getElementById('split-upload-zone').classList.remove('dragover');
+  if (e.dataTransfer.files.length) processSplitFileSelection(e.dataTransfer.files[0]);
 }
 
-// ================================================================
-// ENCODER PAGES
-// ================================================================
-function renderEncoderBanner() {
-  const cont = document.getElementById('encoder-banner-wrap');
-  cont.innerHTML = `
-    <div class="encoder-banner">
+function handleSplitFileSelect(e) {
+  if (e.target.files.length) processSplitFileSelection(e.target.files[0]);
+}
+
+function processSplitFileSelection(file) {
+  if (!file.type.includes('pdf')) { toast('Only PDF files allowed', 'error'); return; }
+  STATE.pendingSplitFile = file;
+  const reader = new FileReader();
+  reader.onload = e => { STATE.pendingSplitFileData = e.target.result; };
+  reader.readAsArrayBuffer(file);
+  const sizeStr = (file.size/1024/1024).toFixed(2) + ' MB';
+  document.getElementById('split-file-info').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--darker);border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;">
       <div style="display:flex;align-items:center;gap:0.75rem;">
-        <div class="encoder-avatar">${STATE.currentUser.firstName[0]}${STATE.currentUser.lastName[0]}</div>
-        <div class="encoder-info">
-          <div class="name">${escHtml(STATE.currentUser.firstName)} ${escHtml(STATE.currentUser.lastName)}</div>
-          <div class="sub">@${escHtml(STATE.currentUser.username)} • Encoder</div>
+        <span style="font-size:1.4rem;">📄</span>
+        <div>
+          <div style="font-weight:600;">${escHtml(file.name)}</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">${sizeStr}</div>
         </div>
       </div>
-      <div style="display:flex;gap:0.5rem;align-items:center;">
-        <span class="badge badge-info" id="enc-quick-remaining">—</span>
-        <button class="btn btn-outline btn-sm" onclick="loadEncoderItems()">🔄</button>
-      </div>
-    </div>
-  `;
-  updateEncoderQuickStats();
+      <span class="badge badge-info">Ready</span>
+    </div>`;
+  document.getElementById('split-btn').disabled = false;
 }
 
-function updateEncoderQuickStats() {
-  const assignedItems = STATE.items.filter(i => {
-    // Check if encoder has access to this item via upload
-    return STATE.uploads.some(u => u.encoderUsername === STATE.currentUser.username && u.itemId === i.id);
-  });
-  const remaining = assignedItems.reduce((s,i)=>s+(i.remaining||0),0);
-  document.getElementById('enc-quick-remaining').textContent = remaining.toLocaleString();
-}
-
-async function loadEncoderItems() {
-  // Filter items assigned to this encoder
-  const encoderUploads = STATE.uploads.filter(u => u.encoderUsername === STATE.currentUser.username);
-  const assignedItemIds = encoderUploads.map(u => u.itemId);
-  STATE.currentUser.assignedItems = STATE.items.filter(i => assignedItemIds.includes(i.id));
-  
-  renderEncoderItemsGrid();
-  updateEncoderQuickStats();
-}
-
-function renderEncoderItemsGrid() {
-  let items = STATE.currentUser?.assignedItems || [];
-  const search = (document.getElementById('enc-items-search')?.value || '').toLowerCase();
-  const filt = document.getElementById('enc-items-filter')?.value || 'all';
-  
-  if (search) items = items.filter(i => i.name.toLowerCase().includes(search));
-  if (filt === 'pending') items = items.filter(i => i.remaining > 0);
-  if (filt === 'done') items = items.filter(i => i.remaining === 0);
-  
-  const cont = document.getElementById('encoder-items-grid');
-  if (!items.length) {
-    cont.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📦</div><h3>No items assigned${search ? ' matching search' : ''}</h3></div>`;
+async function processSplit() {
+  if (!STATE.pendingSplitFile || !STATE.pendingSplitFileData) {
+    toast('No file selected', 'error');
     return;
   }
   
-  cont.innerHTML = items.map(item => {
-    const pct = item.total > 0 ? Math.round((item.printed/item.total)*100) : 0;
-    const hasPdf = STATE.uploads.some(u => u.encoderUsername === STATE.currentUser.username && u.itemId === item.id);
-    return `
-      <div class="item-card ${!hasPdf ? 'border-red' : ''}" onclick="${hasPdf ? `openPrintModal('${item.id}')` : ''}" style="cursor:${hasPdf ? 'pointer' : 'default'};${!hasPdf ? 'opacity:0.6' : ''}">
-        <div class="item-card-header">
-          <div class="item-name">${escHtml(item.name)}</div>
-          <div style="font-size:1.1rem;font-weight:800;color:${hasPdf ? 'var(--green)' : 'var(--orange)'};">${hasPdf ? '✅' : '⏳'}</div>
-        </div>
-        <div class="item-meta">
-          <div class="item-meta-row"><span class="label">Total:</span><span class="value">${item.total.toLocaleString()}</span></div>
-          <div class="item-meta-row"><span class="label">Printed:</span><span class="value text-green">${item.printed.toLocaleString()}</span></div>
-          <div class="item-meta-row"><span class="label">Remaining:</span><span class="value text-yellow bold">${item.remaining.toLocaleString()}</span></div>
-        </div>
-        <div class="tally-bar-wrap">
-          <div class="tally-nums">
-            <span class="printed">${item.printed.toLocaleString()} / ${item.total.toLocaleString()}</span>
-            <span class="remaining">${item.remaining.toLocaleString()} pages left</span>
-          </div>
-          <div class="progress-wrap"><div class="progress-bar green" style="width:${pct}%"></div></div>
-        </div>
-        ${!hasPdf ? '<div class="text-red" style="font-size:0.8rem;margin-top:0.5rem;">📄 PDF file not assigned yet</div>' : ''}
-      </div>`;
-  }).join('');
-}
-
-async function loadEncoderSummary() {
-  const today = new Date().toISOString().slice(0,10);
-  const todayLogs = STATE.logs.filter(l => 
-    l.encoderUsername === STATE.currentUser.username && 
-    l.timestamp?.startsWith(today)
-  );
-  
-  const assignedItems = STATE.currentUser?.assignedItems || [];
-  document.getElementById('enc-stat-printed').textContent = todayLogs.reduce((s,l)=>s+l.pages,0).toLocaleString();
-  document.getElementById('enc-stat-remaining').textContent = assignedItems.reduce((s,i)=>s+(i.remaining||0),0).toLocaleString();
-  document.getElementById('enc-stat-sessions').textContent = todayLogs.length;
-  document.getElementById('enc-stat-items').textContent = assignedItems.length;
-  
-  renderEncoderPrintHistory(todayLogs.slice(0,10));
-}
-
-function renderEncoderPrintHistory(logs) {
-  const cont = document.getElementById('my-print-history');
-  if (!logs.length) {
-    cont.innerHTML = `<div class="empty-state"><div class="icon">📋</div><h3>No print history yet</h3></div>`;
-    return;
-  }
-  cont.innerHTML = logs.map(log => `
-    <div class="ipriprint-row">
-      <div class="key">${escHtml(log.item || log.itemName || '')}</div>
-      <div class="val">pp${log.pagesFrom}–${log.pagesTo} (${log.pages} pages)</div>
-      <div style="font-size:0.75rem;color:var(--text-muted);">${formatTime(log.timestamp)}</div>
-    </div>
-  `).join('');
-}
-
-async function loadEncoderIpriprint() {
-  const encoderUploads = STATE.uploads.filter(u => u.encoderUsername === STATE.currentUser.username);
-  const cont = document.getElementById('ipriprint-info-container');
-  
-  if (!encoderUploads.length) {
-    cont.innerHTML = `<div class="empty-state"><div class="icon">🖨</div><h3>No IPRIPRINT files assigned</h3><p style="font-size:0.83rem;margin-top:0.5rem;">Ask your admin to upload your PDF files.</p></div>`;
-    return;
-  }
-  
-  cont.innerHTML = encoderUploads.map(u => {
-    const item = STATE.items.find(i => i.id === u.itemId);
-    return `
-      <div class="ipriprint-card">
-        <div class="ipriprint-header">
-          <div class="ipriprint-badge">READY</div>
-          <span style="font-size:0.85rem;color:var(--text-muted);">${u.pages} pages</span>
-        </div>
-        <div class="ipriprint-rows">
-          <div class="ipriprint-row">
-            <span class="key">Filename:</span>
-            <span class="val">${escHtml(u.filename)}</span>
-          </div>
-          <div class="ipriprint-row">
-            <span class="key">Item:</span>
-            <span class="val">${escHtml(item?.name || 'N/A')}</span>
-          </div>
-          <div class="ipriprint-row">
-            <span class="key">Uploaded:</span>
-            <span class="val">${u.uploadDate}</span>
-          </div>
-          <div class="ipriprint-row">
-            <span class="key">Remaining:</span>
-            <span class="val text-yellow">${(item?.remaining || 0).toLocaleString()}</span>
-          </div>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-// ================================================================
-// PRINTING SYSTEM
-// ================================================================
-
-let printFrame = null;
-let isPrinting = false;
-let currentPrintJob = null;
-
-async function openPrintModal(itemId) {
-  const item = STATE.items.find(i => i.id === itemId);
-  if (!item || item.remaining <= 0) {
-    toast('No pages remaining to print', 'warning');
-    return;
-  }
-  
-  STATE.pendingPrintItem = item;
-  
-  // Get assigned PDF for this encoder/item
-  const encoderUploads = STATE.uploads.filter(u => 
-    u.encoderUsername === STATE.currentUser.username && u.itemId === itemId
-  );
-  const upload = encoderUploads[0];
-  
-  // Load PDF from sessionStorage
-  let pdfDoc = null;
-  let pageCount = 0;
-  
-  try {
-    if (upload) {
-      const key = `pdf_${STATE.currentUser.username}_${itemId}`;
-      const stored = sessionStorage.getItem(key);
-      if (stored) {
-        const binaryString = atob(stored);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        pdfDoc = await pdfjsLib.getDocument({ data: bytes.buffer }).promise;
-        pageCount = pdfDoc.numPages;
-      }
-    }
-  } catch(e) {
-    console.warn('PDF load failed:', e);
-  }
-  
-  STATE.currentPdfDoc = pdfDoc;
-  
-  // Build modal content
-  document.getElementById('print-modal-body').innerHTML = `
-    <div class="print-info-grid">
-      <div class="print-info-cell">
-        <div class="label">Item</div>
-        <div class="value">${escHtml(item.name)}</div>
-      </div>
-      <div class="print-info-cell">
-        <div class="label">Remaining</div>
-        <div class="value text-yellow bold">${item.remaining.toLocaleString()}</div>
-      </div>
-      ${upload ? `
-        <div class="print-info-cell">
-          <div class="label">PDF File</div>
-          <div class="value">${escHtml(upload.filename)}</div>
-        </div>
-        <div class="print-info-cell">
-          <div class="label">PDF Pages</div>
-          <div class="value text-green">${pageCount || 'Unknown'}</div>
-        </div>
-      ` : `
-        <div class="print-info-cell" style="grid-column:1/-1;">
-          <div class="label" style="color:var(--orange);">⚠️ No PDF assigned</div>
-          <div class="value text-muted">Contact admin to upload PDF</div>
-        </div>
-      `}
-    </div>
-    
-    <div class="form-group mt-2">
-      <label class="form-label">Pages per Print Session 
-        <span style="color:var(--text-muted);font-size:0.8rem;">
-          (max ${Math.min(item.remaining, CONFIG.maxPagesPerBatch || 200)})
-        </span>
-      </label>
-      <input type="number" class="form-control" id="batch-size-input" 
-        value="${Math.min(item.remaining, CONFIG.maxPagesPerBatch || 200)}" 
-        min="1" max="${item.remaining}">
-    </div>
-    
-    <div class="batch-list" id="batch-list" style="max-height:200px;overflow-y:auto;"></div>
-    
-    <div style="margin-top:1.5rem;display:flex;flex-direction:column;gap:0.75rem;">
-      <div class="text-muted" style="font-size:0.82rem;">
-        💡 Tip: Print 50-100 pages per session for best results
-      </div>
-      <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
-        <button class="btn btn-ghost" onclick="closeModal('print-modal')">❌ Cancel</button>
-        <button class="btn btn-print btn-lg" id="start-print-btn" onclick="startPrinting()" 
-          ${!pdfDoc ? 'disabled' : ''} style="${!pdfDoc ? 'opacity:0.5' : ''}">
-          🖨️ START PRINTING
-        </button>
-      </div>
-    </div>
-    
-    ${!pdfDoc ? `
-      <div class="alert alert-warning mt-2">
-        <span class="alert-icon">⚠️</span>
-        No PDF file assigned. Ask your admin to upload the IPRIPRINT PDF for this item.
-      </div>
-    ` : ''}
-  `;
-  
-  openModal('print-modal');
-  if (pdfDoc) updateBatchPreview(1); // Show initial batch preview
-}
-async function startPrinting() {
-  const batchSize = parseInt(document.getElementById('batch-size-input').value) || 0;
-  const item = STATE.pendingPrintItem;
-  
-  if (!batchSize || batchSize > item.remaining) {
-    toast('Invalid batch size', 'error');
-    return;
-  }
-  
-  if (!STATE.currentPdfDoc) {
-    toast('No PDF loaded', 'error');
-    return;
-  }
-  
-  if (isPrinting) {
-    toast('Print already in progress', 'warning');
-    return;
-  }
-  
-  // Initialize print job
-  currentPrintJob = {
-    itemId: item.id,
-    batchSize,
-    startPage: item.printed + 1,
-    totalBatches: Math.ceil(batchSize / 10), // 10 pages per batch max
-    currentBatch: 0,
-    pdfDoc: STATE.currentPdfDoc
-  };
-  
-  isPrinting = true;
-  
-  const btn = document.getElementById('start-print-btn');
+  const pagesPerSplit = parseInt(document.getElementById('split-pages-input').value) || 200;
+  const btn = document.getElementById('split-btn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Starting...';
+  btn.innerHTML = '<span class="spin"></span> Processing…';
   
   try {
-    await createPrintBatches();
-    await initPrintFrame();
-    await processPrintJob();
-  } catch(e) {
-    toast('Print failed: ' + e.message, 'error');
-    resetPrintUI();
-  }
-}
-function updateBatchPreview(currentBatch) {
-  // Show first few pages of first batch as preview
-  const batchList = document.getElementById('batch-list');
-  if (!batchList || !STATE.currentPdfDoc) return;
-  
-  let html = '';
-  const firstBatch = STATE.printBatches?.[0];
-  if (firstBatch) {
-    html = `
-      <div class="batch-item active">
-        <div class="batch-num">1</div>
-        <span>pp${firstBatch.pagesFrom}–${firstBatch.pagesTo} (${firstBatch.pages}pg)</span>
-      </div>
-    `;
-  }
-  batchList.innerHTML = html;
-}
-
-async function processPrintJob() {
-  const job = currentPrintJob;
-  
-  for (let batchIdx = 0; batchIdx < STATE.printBatches.length; batchIdx++) {
-    if (!isPrinting) break; // User cancelled
+    // Load PDF
+    const pdfDoc = await PDFLib.PDFDocument.load(STATE.pendingSplitFileData);
+    const totalPages = pdfDoc.getPageCount();
+    const numSplits = Math.ceil(totalPages / pagesPerSplit);
     
-    job.currentBatch = batchIdx;
-    const batch = STATE.printBatches[batchIdx];
+    const results = [];
     
-    try {
-      // 1. Render PDF pages for this batch
-      await renderBatchPages(batch);
+    for (let i = 0; i < numSplits; i++) {
+      const startPage = i * pagesPerSplit;
+      const endPage = Math.min(startPage + pagesPerSplit, totalPages);
+      const pagesToCopy = endPage - startPage;
       
-      // 2. Log to server
-      await logPrintBatch(batch);
+      // Create new PDF
+      const newPdf = await PDFLib.PDFDocument.create();
+      const copiedPages = await newPdf.copyPages(pdfDoc, Array.from({length: pagesToCopy}, (_, idx) => startPage + idx));
+      copiedPages.forEach(page => newPdf.addPage(page));
       
-      // 3. Update UI
-      updateBatchList(batchIdx + 1);
+      // Save PDF
+      const pdfBytes = await newPdf.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
       
-      // 4. Render to print frame & trigger print
-      renderBatchToPrintFrame(batch, batchIdx);
-      await triggerPrintDialog();
-      
-      // 5. Brief pause between batches
-      if (batchIdx < STATE.printBatches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
-      
-    } catch(e) {
-      console.error('Batch failed:', e);
-      toast(`Batch ${batchIdx + 1} failed: ${e.message}`, 'error');
-      break;
-    }
-  }
-  
-  await finalizePrintSession();
-}
-
-
-async function startPrintBatch() {
-  const batchSize = parseInt(document.getElementById('batch-size-input').value);
-  const item = STATE.pendingPrintItem;
-  
-  if (!batchSize || batchSize > item.remaining || !STATE.currentPdfDoc) {
-    toast('Invalid batch size or no PDF loaded', 'error');
-    return;
-  }
-  
-  if (isPrinting) {
-    toast('Print already in progress', 'warning');
-    return;
-  }
-  
-  // UI: Start printing
-  isPrinting = true;
-  const btn = document.getElementById('start-print-btn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Preparing...';
-  
-  try {
-    // 1. Create batches
-    await createPrintBatches(batchSize);
-    
-    // 2. Initialize print frame
-    await initPrintFrame();
-    
-    // 3. Start printing sequence
-    await startPrintSequence();
-    
-  } catch(e) {
-    toast('Print setup failed: ' + e.message, 'error');
-    resetPrintUI();
-  }
-}
-
-
-async function processSingleBatch(batchIdx) {
-  const batch = STATE.printBatches[batchIdx];
-  
-  try {
-    // 1. Render PDF pages for this batch
-    await renderBatchPages(batch);
-    
-    // 2. Log to server immediately
-    await logPrintBatch(batch);
-    
-    // 3. Render to print frame
-    renderBatchToPrintFrame(batch, batchIdx);
-    
-    // 4. Trigger print dialog
-    await triggerPrintDialog();
-    
-    // 5. Update UI
-    updateBatchList(batchIdx + 1);
-    
-  } catch(e) {
-    console.error('Batch failed:', e);
-    toast(`Batch ${batchIdx + 1} failed: ${e.message}`, 'error');
-  }
-}
-
-async function startPrintSequence() {
-  for (let batchIdx = 0; batchIdx < STATE.printBatches.length; batchIdx++) {
-    await processSingleBatch(batchIdx);
-    
-    // Delay between batches
-    if (batchIdx < STATE.printBatches.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 4000));
-    }
-  }
-  
-  await finalizePrintSession();
-}
-async function renderBatchPages(batch) {
-  const pdfDoc = STATE.currentPdfDoc;
-  
-  for (let pageNum = batch.pagesFrom; pageNum <= batch.pagesTo; pageNum++) {
-    if (pageNum > pdfDoc.numPages) {
-      batch.pdfPages.push(createErrorCanvas(pageNum));
-      continue;
-    }
-    
-    try {
-      const page = await pdfDoc.getPage(pageNum);
-      const canvas = await renderPdfPageToCanvas(page);
-      batch.pdfPages.push(canvas);
-    } catch(e) {
-      console.error(`Page ${pageNum} render failed:`, e);
-      batch.pdfPages.push(createErrorCanvas(pageNum));
-    }
-  }
-}
-
-
-async function createPrintBatches() {
-  STATE.printBatches = [];
-  const job = currentPrintJob;
-  let pagesLeft = job.batchSize;
-  let pageNum = job.startPage;
-  
-  while (pagesLeft > 0) {
-    const batchPages = Math.min(10, pagesLeft); // Max 10 pages per print batch
-    const batchTo = pageNum + batchPages - 1;
-    
-    STATE.printBatches.push({
-      index: STATE.printBatches.length,
-      pagesFrom: pageNum,
-      pagesTo: batchTo,
-      pages: batchPages,
-      pdfPages: [],
-      rendered: false
-    });
-    
-    pageNum += batchPages;
-    pagesLeft -= batchPages;
-  }
-  
-  updateBatchList(0);
-}
-
-
-async function triggerPrintDialog() {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-        setTimeout(resolve, 1500);
-      } catch(e) {
-        console.warn('Auto-print failed:', e);
-        toast('Please click PRINT button in preview', 'info');
-        resolve();
-      }
-    }, 500);
-  });
-}
-
-function resetPrintUI() {
-  const btn = document.getElementById('start-print-btn');
-  if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = '🖨️ START PRINTING';
-  }
-}
-
-async function processPrintBatch(batchIndex) {
-  if (batchIndex >= STATE.printBatches.length) {
-    await finalizePrintSession();
-    return;
-  }
-  
-  const batch = STATE.printBatches[batchIndex];
-  
-  try {
-    // Log the batch immediately
-    await logPrintBatch(batch);
-    
-    // Initialize print frame if needed
-    if (!printFrame || printFrame.closed) {
-      await initPrintFrame();
-    }
-    
-    // Render batch to frame
-    renderBatchToPrintFrame(batch, batchIndex);
-    
-    // Trigger print dialog
-    setTimeout(() => {
-      try {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      } catch(e) {
-        console.error('Print dialog failed:', e);
-        toast('Print dialog failed - please print manually from preview', 'warning');
-      }
-    }, 800);
-    
-    // Schedule next batch
-    if (batchIndex < STATE.printBatches.length - 1) {
-      setTimeout(() => processPrintBatch(batchIndex + 1), 4000);
-    }
-    
-  } catch(e) {
-    console.error('Print batch failed:', e);
-    toast('Batch ' + (batchIndex + 1) + ' failed: ' + e.message, 'error');
-  }
-}
-
-  
-function resetPrintButton() {
-  const btn = document.getElementById('start-print-btn');
-  btn.disabled = false;
-  btn.innerHTML = '🖨️ START PRINTING';
-}
-function processFirstPrintBatch() {
-  // Log FIRST batch immediately
-  const batch = STATE.printBatches[0];
-  logPrintBatch(batch).then(() => {
-    renderBatchToPrintFrame(batch);
-    
-    // Open print dialog after 500ms
-    setTimeout(() => {
-      printFrame.contentWindow.focus();
-      printFrame.contentWindow.print();
-    }, 500);
-    
-    // Prepare next batch
-    if (STATE.printBatches.length > 1) {
-      setTimeout(() => processNextPrintBatch(), 3000);
-    } else {
-      setTimeout(finalizePrintSession, 4000);
-    }
-  });
-}
-
-async function renderAllBatchPages() {
-  const totalBatches = STATE.printBatches.length;
-  
-  for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-    const batch = STATE.printBatches[batchIdx];
-    
-    // Render each page in batch
-    for (let pageNum = batch.pagesFrom; pageNum <= batch.pagesTo; pageNum++) {
-      if (pageNum > STATE.currentPdfDoc.numPages) {
-        console.warn(`Page ${pageNum} exceeds PDF`);
-        break;
-      }
-      
-      try {
-        const page = await STATE.currentPdfDoc.getPage(pageNum);
-        const canvas = await renderPdfPageToCanvas(page);
-        batch.pdfPages.push(canvas);
-      } catch(e) {
-        console.error(`Page ${pageNum} render failed:`, e);
-        batch.pdfPages.push(createErrorCanvas(pageNum));
-      }
-    }
-    
-    updateBatchList(batchIdx + 1);
-    await new Promise(resolve => setTimeout(resolve, 50)); // Prevent overload
-  }
-}
-
-async function renderPdfPageToCanvas(page) {
-  const scale = 1.8; // Higher quality
-  const viewport = page.getViewport({ scale });
-  
-  const canvas = document.createElement('canvas');
-  canvas.height = viewport.height;
-  canvas.width = viewport.width;
-  const context = canvas.getContext('2d');
-  context.imageSmoothingEnabled = true;
-  
-  const renderContext = {
-    canvasContext: context,
-    viewport: viewport
-  };
-  
-  await page.render(renderContext).promise;
-  return canvas;
-}
-
-
-function createErrorCanvas(pageNum) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 794;  // A4 at 96 DPI
-  canvas.height = 1123;
-  const ctx = canvas.getContext('2d');
-  
-  // White background
-  ctx.fillStyle = 'white';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  
-  // Error message
-  ctx.fillStyle = '#dc3545';
-  ctx.font = 'bold 48px Arial';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('PAGE ERROR', canvas.width/2, canvas.height/2);
-  
-  ctx.fillStyle = '#6c757d';
-  ctx.font = '32px Arial';
-  ctx.fillText(`Page ${pageNum}`, canvas.width/2, canvas.height/2 + 50);
-  
-  return canvas;
-}
-
-async function initPrintFrame() {
-  return new Promise((resolve, reject) => {
-    const frame = document.getElementById('print-frame');
-    
-    // Reset frame styles
-    frame.style.cssText = `
-      display: block !important;
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      z-index: 99999 !important;
-      background: white !important;
-      border: none !important;
-    `;
-    
-    printFrame = frame;
-    
-    const printDoc = frame.contentDocument || frame.contentWindow.document;
-    
-    printDoc.open();
-    printDoc.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>JNT Waybill Print - Batch ${currentPrintJob.currentBatch + 1}</title>
-        <meta charset="UTF-8">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { 
-            font-family: Arial, sans-serif; 
-            background: white; 
-            margin: 0; 
-            padding: 0;
-          }
-          .print-container { 
-            max-width: 210mm; 
-            margin: 0 auto; 
-            padding: 10mm; 
-          }
-          .print-page { 
-            width: 210mm; 
-            min-height: 297mm; 
-            margin-bottom: 5mm; 
-            padding: 15mm; 
-            background: white; 
-            page-break-after: always;
-            position: relative; 
-            box-shadow: 0 0 1px rgba(0,0,0,0.1);
-          }
-          .print-page:last-child { page-break-after: auto; margin-bottom: 0; }
-          canvas { 
-            max-width: 100%; 
-            height: auto; 
-            display: block; 
-            margin: 0 auto; 
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-          }
-          .batch-info {
-            position: absolute; 
-            top: 10mm; 
-            right: 15mm;
-            background: rgba(230,0,18,0.95); 
-            color: white; 
-            padding: 8px 14px;
-            font-size: 13px; 
-            font-weight: bold; 
-            border-radius: 6px;
-            z-index: 10;
-          }
-          .print-header {
-            text-align: center;
-            margin-bottom: 20mm;
-            color: #666;
-            font-size: 14px;
-          }
-          @media print { 
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .batch-info { background: #e60012 !important; }
-          }
-          @media screen { 
-            body::before {
-              content: '🖨️ PRINT THIS BATCH - Then click OK'; 
-              position: fixed; 
-              top: 20px; 
-              left: 50%; 
-              transform: translateX(-50%);
-              z-index: 10001;
-              background: rgba(230,0,18,0.95); 
-              color: white; 
-              padding: 15px 30px;
-              border-radius: 8px; 
-              font-weight: bold;
-              box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="print-container">
-          <div class="print-header">
-            <h2>JNT Waybill Printing</h2>
-            <div id="batch-status"></div>
-          </div>
-          <div id="print-pages"></div>
-        </div>
-      </body>
-      </html>
-    `);
-    printDoc.close();
-    
-    frame.onload = () => {
-      setTimeout(() => {
-        resolve();
-      }, 300);
-    };
-    
-    frame.onerror = reject;
-  });
-}
-
-async function processNextPrintBatch() {
-  if (STATE.currentBatchIndex >= STATE.printBatches.length - 1) {
-    finalizePrintSession();
-    return;
-  }
-  
-  STATE.currentBatchIndex++;
-  const batch = STATE.printBatches[STATE.currentBatchIndex];
-  
-  await logPrintBatch(batch);
-  renderBatchToPrintFrame(batch);
-  updateBatchList(STATE.currentBatchIndex + 1);
-  
-  setTimeout(() => {
-    printFrame.contentWindow.focus();
-    printFrame.contentWindow.print();
-  }, 500);
-  
-  if (STATE.currentBatchIndex < STATE.printBatches.length - 1) {
-    setTimeout(processNextPrintBatch, 3000);
-  }
-}
-
-async function logPrintBatch(batch) {
-  const log = {
-    id: 'log_' + Date.now(),
-    encoder: STATE.currentUser.firstName + ' ' + STATE.currentUser.lastName,
-    encoderUsername: STATE.currentUser.username,
-    item: STATE.pendingPrintItem.name,
-    itemId: STATE.pendingPrintItem.id,
-    pagesFrom: batch.pagesFrom,
-    pagesTo: batch.pagesTo,
-    pages: batch.pages,
-    batch: batch.index + 1,
-    timestamp: nowStr()
-  };
-  
-  const result = await api('logPrint', { log });
-  
-  if (result.success) {
-    STATE.logs.push(log);
-    
-    // Update item counters locally
-    const item = STATE.items.find(i => i.id === STATE.pendingPrintItem.id);
-    if (item) {
-      item.printed += batch.pages;
-      item.remaining -= batch.pages;
-    }
-  }
-  
-  return result;
-}
-
-
-function renderBatchToPrintFrame(batch, batchIdx) {
-  const printDoc = printFrame.contentDocument;
-  const pagesContainer = printDoc.getElementById('print-pages');
-  const batchStatus = printDoc.getElementById('batch-status');
-  
-  // Update batch status
-  batchStatus.innerHTML = `
-    <strong>${escHtml(STATE.pendingPrintItem.name)}</strong><br>
-    Batch ${batchIdx + 1} of ${STATE.printBatches.length} • 
-    Pages ${batch.pagesFrom}-${batch.pagesTo} (${batch.pages} pages)
-  `;
-  
-  // Clear and rebuild pages
-  pagesContainer.innerHTML = '';
-  
-  batch.pdfPages.forEach((canvas, pageIndex) => {
-    const pageDiv = printDoc.createElement('div');
-    pageDiv.className = 'print-page';
-    
-    // Batch info overlay
-    const infoDiv = printDoc.createElement('div');
-    infoDiv.className = 'batch-info';
-    infoDiv.innerHTML = `
-      Batch ${batchIdx + 1}<br>
-      pp${batch.pagesFrom + pageIndex}
-    `;
-    pageDiv.appendChild(infoDiv);
-    
-    // Add canvas
-    pageDiv.appendChild(canvas.cloneNode(true));
-    pagesContainer.appendChild(pageDiv);
-  });
-}
-
-
-function updateBatchList(currentBatch) {
-  const batchList = document.getElementById('batch-list');
-  if (!batchList) return;
-  
-  let html = '';
-  STATE.printBatches.forEach((batch, i) => {
-    const status = i < currentBatch - 1 ? 'done' : 
-                   i === currentBatch - 1 ? 'active' : '';
-    
-    html += `
-      <div class="batch-item ${status}">
-        <div class="batch-num">${i+1}</div>
-        <span>pp${batch.pagesFrom}–${batch.pagesTo}</span>
-        <span style="font-size:0.8rem;color:var(--text-muted);margin-left:auto;">
-          ${batch.pages}pg
-        </span>
-      </div>
-    `;
-  });
-  
-  batchList.innerHTML = html;
-}
-
-function closeModal(id) {
-  if (id === 'print-modal' && isPrinting) {
-    if (confirm('Print in progress. Cancel anyway?')) {
-      resetPrintState();
-    } else {
-      return;
-    }
-  }
-  document.getElementById(id).classList.add('hidden');
-  resetPrintUI();
-}
-
-
-function createBatchList() {
-  const modalBody = document.getElementById('print-modal-body');
-  const batchListDiv = document.createElement('div');
-  batchListDiv.className = 'batch-list';
-  batchListDiv.innerHTML = `
-    <div class="batch-item active">
-      <div class="batch-num">1</div>
-      <span>Preparing batch 1...</span>
-    </div>
-  `;
-  modalBody.appendChild(batchListDiv);
-  return batchListDiv;
-}
-
-async function finalizePrintSession() {
-  try {
-    // Final server sync
-    const item = STATE.pendingPrintItem;
-    if (item && item.id) {
-      await api('updateItem', { 
-        id: item.id, 
-        data: { 
-          printed: item.printed || 0, 
-          remaining: item.remaining || 0 
-        }
+      results.push({
+        name: `${STATE.pendingSplitFile.name.replace('.pdf', '')}_part${i+1}.pdf`,
+        pages: pagesToCopy,
+        range: `${startPage + 1}-${endPage}`,
+        url: url
       });
     }
+    
+    // Display results
+    displaySplitResults(results);
+    
+    toast(`✅ PDF split into ${numSprints} parts`, 'success');
   } catch(e) {
-    console.error('Final sync failed:', e);
+    console.error('Split error:', e);
+    toast('Split failed: ' + e.message, 'error');
+  } finally {
+    btn.innerHTML = '✂️ Split PDF';
+    btn.disabled = false;
   }
-  
-  // Calculate total printed
-  const totalPrinted = STATE.printBatches.reduce((sum, batch) => sum + batch.pages, 0);
-  
-  // Cleanup
-  resetPrintFrame();
-  
-  // Success toast
-  toast(`✅ Print complete! ${totalPrinted.toLocaleString()} pages processed`, 'success');
-  
-  // Close modal and refresh data
-  closeModal('print-modal');
-  await loadAllData();
-  
-  // Refresh relevant UI
-  if (STATE.role === 'encoder') {
-    renderEncoderBanner();
-    loadEncoderItems();
-    renderEncoderItemsGrid();
-  } else {
-    loadAdminDashboard();
-    renderAdminItemsTable();
-  }
-  
-  resetPrintState();
-}
-function resetPrintFrame() {
-  if (printFrame) {
-    printFrame.style.display = 'none';
-    printFrame.src = '';
-    printFrame = null;
-  }
-}
-function resetPrintState() {
-  isPrinting = false;
-  currentPrintJob = null;
-  STATE.pendingPrintItem = null;
-  STATE.printBatches = [];
-  STATE.currentPdfDoc = null;
-  resetPrintFrame();
-  resetPrintUI();
 }
 
-const originalCloseModal = closeModal;
-window.closeModal = function(id) {
-  if (id === 'print-modal' && isPrinting) {
-    if (confirm('Print job in progress. Cancel and stop printing?')) {
-      isPrinting = false;
-      resetPrintState();
-    } else {
-      return;
-    }
-  }
-  originalCloseModal(id);
-};
+function displaySplitResults(results) {
+  const cont = document.getElementById('split-results-container');
+  cont.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:0.75rem;">
+      ${results.map((r, i) => `
+        <div style="display:flex;align-items:center;justify-content:space-between;background:var(--darker);border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;">
+          <div>
+            <div style="font-weight:700;">${escHtml(r.name)}</div>
+            <div class="text-muted" style="font-size:0.75rem;">Pages ${r.range} • ${r.pages} pages</div>
+          </div>
+          <a href="${r.url}" download="${r.name}" class="btn btn-primary btn-sm">⬇ Download</a>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
 
 // ================================================================
 // SETTINGS
@@ -3133,13 +1667,11 @@ window.closeModal = function(id) {
 function loadSettingsPage() {
   document.getElementById('apps-script-url-setting').value = CONFIG.appsScriptUrl;
   document.getElementById('sheet-id-setting').value = CONFIG.sheetId;
-  document.getElementById('max-pages-setting').value = CONFIG.maxPagesPerBatch || 200;
 }
 
 async function saveSettings() {
   CONFIG.appsScriptUrl = document.getElementById('apps-script-url-setting').value.trim();
   CONFIG.sheetId = document.getElementById('sheet-id-setting').value.trim();
-  CONFIG.maxPagesPerBatch = parseInt(document.getElementById('max-pages-setting').value) || 200;
   saveConfig();
   toast('Settings saved', 'success');
   await loadAllData();
@@ -3199,61 +1731,6 @@ async function changeAdminPassword() {
   }
 }
 
-function copyAppsScript() {
-  const code = getAppsScriptCode();
-  navigator.clipboard.writeText(code).then(() => {
-    toast('Apps Script code copied!', 'success');
-  });
-}
-
-function getAppsScriptCode() {
-  return 
-
-const SHEET_CONFIG = {
-  USERS: 'Users!A:H',
-  ITEMS: 'Items!A:E', 
-  LOGS: 'Logs!A:G',
-  UPLOADS: 'Uploads!A:H',
-  INVITE_CODES: 'InviteCodes!A:C'
-};
-
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-    
-    switch(action) {
-      case 'ping': return ContentService.createTextOutput(JSON.stringify({success: true}));
-      case 'getUsers': return ContentService.createTextOutput(JSON.stringify({success: true, data: getUsers()}));
-      case 'getItems': return ContentService.createTextOutput(JSON.stringify({success: true, data: getItems()}));
-      case 'getLogs': return ContentService.createTextOutput(JSON.stringify({success: true, data: getLogs()}));
-      case 'getUploads': return ContentService.createTextOutput(JSON.stringify({success: true, data: getUploads()}));
-      case 'login': return ContentService.createTextOutput(JSON.stringify(login(data)));
-      case 'registerUser': return ContentService.createTextOutput(JSON.stringify(registerUser(data.user)));
-      case 'updateUserStatus': return ContentService.createTextOutput(JSON.stringify(updateUserStatus(data.id, data.status)));
-      case 'deleteUser': return ContentService.createTextOutput(JSON.stringify(deleteUser(data.id)));
-      case 'addItem': return ContentService.createTextOutput(JSON.stringify(addItem(data.item)));
-      case 'updateItem': return ContentService.createTextOutput(JSON.stringify(updateItem(data.id, data.data)));
-      case 'deleteItem': return ContentService.createTextOutput(JSON.stringify(deleteItem(data.id)));
-      case 'logPrint': return ContentService.createTextOutput(JSON.stringify(logPrint(data.log)));
-      case 'addUpload': return ContentService.createTextOutput(JSON.stringify(addUpload(data.upload)));
-      case 'addInviteCode': return ContentService.createTextOutput(JSON.stringify(addInviteCode(data.code, data.createdBy, data.createdAt)));
-      case 'verifyInviteCode': return ContentService.createTextOutput(JSON.stringify(verifyInviteCode(data.code)));
-      case 'consumeInviteCode': return ContentService.createTextOutput(JSON.stringify(consumeInviteCode(data.code)));
-      case 'changePassword': return ContentService.createTextOutput(JSON.stringify(changePassword(data.userId, data.currentHash, data.newHash)));
-      default: return ContentService.createTextOutput(JSON.stringify({success: false, error: 'Unknown action'}));
-    }
-  } catch(error) {
-    return ContentService.createTextOutput(JSON.stringify({success: false, error: error.toString()}));
-  }
-}
-
-// ... (full Apps Script implementation would go here - 300+ lines)
-// Add this comment: "Complete Apps Script backend available in Settings page"
-
-return '/* Full Google Apps Script backend code - Paste into Apps Script editor */';
-}
-
 // ================================================================
 // UTILITY FUNCTIONS
 // ================================================================
@@ -3279,29 +1756,6 @@ async function hashPassword(password) {
 }
 
 // ================================================================
-// MOBILE & WINDOW EVENTS
-// ================================================================
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
-}
-
-window.addEventListener('resize', () => {
-  if (window.innerWidth > 768) {
-    document.getElementById('sidebar').classList.remove('open');
-  }
-});
-
-window.addEventListener('beforeprint', () => {
-  document.body.classList.add('printing');
-  document.querySelectorAll('.no-print').forEach(el => el.style.display = 'none');
-});
-
-window.addEventListener('afterprint', () => {
-  document.body.classList.remove('printing');
-  document.querySelectorAll('.no-print').forEach(el => el.style.display = '');
-});
-
-// ================================================================
 // PDF.JS INITIALIZATION
 // ================================================================
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -3310,11 +1764,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initSplash();
 });
 
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && document.getElementById('print-modal')?.classList.contains('modal-overlay:not(.hidden)')) {
-    closeModal('print-modal');
-  }
-});
 // Auto-hide sidebar on mobile after selection
 document.querySelectorAll('.nav-item').forEach(item => {
   item.addEventListener('click', () => {
